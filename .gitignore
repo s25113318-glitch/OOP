@@ -1,0 +1,3520 @@
+import javax.swing.*;
+import javax.swing.border.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.geom.*;
+import java.util.*;
+import java.util.List;
+
+
+/**
+ * LUMINA: Universal Sensory Movie Hub
+ * Completely compiled, self-contained single-file Java Swing application.
+ */
+public class Main extends JFrame {
+
+
+    // --- MULTILINGUAL LOCALIZATION REGISTRY ---
+    public enum Language { ENGLISH, TAGALOG, BISAYA, TRADITIONAL_CHINESE }
+    public static Language activeLanguage = Language.ENGLISH;
+
+
+    public static class Dictionary {
+        private static final Map<String, String[]> translationMap = new HashMap<>();
+
+
+        static {
+            translationMap.put("entrance_tagline", new String[]{
+                    "UNIVERSAL SENSORY THEATRES", "PANGKALAHATANG SENTRONG PANDAMA",
+                    "UNIBERSAL NGA SENTRO SA IGPAPANLANTAW", "環球感官電影中心"
+            });
+            translationMap.put("btn_login", new String[]{
+                    "SECURE LOG IN", "MAG-LOG IN NANG LIGTAS", "SIGURADONG PAG-LOG IN", "安全登入"
+            });
+            translationMap.put("btn_register", new String[]{
+                    "NEW ACCOUNT ARCHIVE", "GUMAWA NG BAGONG AKAWNT", "PAGHIMO UG AKAWNT", "註冊新帳戶"
+            });
+            translationMap.put("nav_dashboard", new String[]{
+                    "Schedules", "Schedules", "Schedules", "電影主頁"
+            });
+            translationMap.put("nav_library", new String[]{
+                    "Directors", "Mga Direktor", "Mga Direktor", "導演文庫"
+            });
+            translationMap.put("nav_about", new String[]{
+                    "What is Lumina", "Ano ang Lumina", "Unsa ang Lumina", "關於 Lumina"
+            });
+            translationMap.put("nav_profile", new String[]{
+                    "Profile", "Akaunt", "Akaunt", "個人帳戶"
+            });
+            translationMap.put("nav_logout", new String[]{
+                    "Log Out", "Mag-log Out", "Log Out", "登出"
+            });
+            translationMap.put("lbl_sensory", new String[]{
+                    "Sensory Safe Mode", "Sensory Safe Mode", "Sensory Safe Mode", "安全感官模式"
+            });
+        }
+
+
+        public static String get(String key) {
+            String[] arr = translationMap.get(key);
+            if (arr == null) return key;
+            return arr[Main.activeLanguage.ordinal()];
+        }
+    }
+
+
+    // --- SYSTEM THEMING CONTROLLER ---
+    public static class AppTheme {
+        public static boolean sensorySafeMode = false;
+        public static boolean dyslexiaFontMode = false;
+
+
+        public static Color getBackgroundStart() {
+            return sensorySafeMode ? new Color(34, 40, 49) : new Color(11, 15, 26);
+        }
+
+
+        public static Color getBackgroundEnd() {
+            return sensorySafeMode ? new Color(20, 24, 30) : new Color(2, 4, 8);
+        }
+
+
+        public static Color getAccent() {
+            return sensorySafeMode ? new Color(147, 131, 230) : new Color(255, 0, 120);
+        }
+
+
+        public static Color getSecondaryAccent() {
+            return sensorySafeMode ? new Color(110, 160, 210) : new Color(0, 229, 255);
+        }
+
+
+        public static Color getGold() {
+            return sensorySafeMode ? new Color(230, 190, 110) : new Color(255, 191, 0);
+        }
+
+
+        public static Color getSurfaceGlass() {
+            return sensorySafeMode ? new Color(255, 255, 255, 30) : new Color(255, 255, 255, 12);
+        }
+
+
+        public static Color getBorderGlass() {
+            return sensorySafeMode ? new Color(255, 255, 255, 60) : new Color(255, 255, 255, 25);
+        }
+
+
+        public static Color getTextColor() {
+            return Color.WHITE;
+        }
+
+
+        public static Font getFont(int style, int size) {
+            String fontName = dyslexiaFontMode ? "Monospaced" : (sensorySafeMode ? "Monospaced" : "SansSerif");
+            return new Font(fontName, style, size);
+        }
+    }
+
+
+    // --- IMAGE LOADING & SMOOTH SCALING UTILITY ---
+    public static ImageIcon getScaledImage(String path, int width, int height) {
+        try {
+            java.net.URL imgUrl = Main.class.getResource("/" + path);
+            Image img;
+            if (imgUrl != null) {
+                img = new ImageIcon(imgUrl).getImage();
+            } else {
+                img = new ImageIcon(path).getImage();
+            }
+            if (img.getWidth(null) == -1) {
+                return null;
+            }
+            return new ImageIcon(img.getScaledInstance(width, height, Image.SCALE_SMOOTH));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+
+    // --- PROGRAMMATIC QR CODE GENERATOR ---
+    public static class QRGenerator {
+        public static void drawFinderPattern(Graphics2D g2, int x, int y, int size) {
+            g2.setColor(Color.WHITE);
+            g2.fillRect(x, y, size, size);
+            g2.setColor(new Color(15, 23, 42));
+            g2.fillRect(x + size / 7, y + size / 7, size - 2 * (size / 7), size - 2 * (size / 7));
+            g2.setColor(Color.WHITE);
+            g2.fillRect(x + 2 * (size / 7), y + 2 * (size / 7), size - 4 * (size / 7), size - 4 * (size / 7));
+        }
+
+
+        public static void drawMatrix(Graphics2D g2, int x, int y, int size, String refCode) {
+            g2.setColor(Color.WHITE);
+            g2.fillRect(x, y, size, size);
+
+
+            int modules = 21;
+            int cellSize = size / modules;
+            int finderSize = 7 * cellSize;
+
+
+            drawFinderPattern(g2, x, y, finderSize);
+            drawFinderPattern(g2, x + size - finderSize, y, finderSize);
+            drawFinderPattern(g2, x, y + size - finderSize, finderSize);
+
+
+            Random rand = new Random(refCode.hashCode());
+            g2.setColor(new Color(15, 23, 42));
+            for (int r = 0; r < modules; r++) {
+                for (int c = 0; c < modules; c++) {
+                    if ((r < 7 && c < 7) || (r < 7 && c >= modules - 7) || (r >= modules - 7 && c < 7)) {
+                        continue;
+                    }
+                    if (rand.nextBoolean()) {
+                        g2.fillRect(x + c * cellSize, y + r * cellSize, cellSize, cellSize);
+                    }
+                }
+            }
+        }
+    }
+
+
+    // --- CUSTOM VISUAL CONTAINER RENDERING SCHEMES ---
+
+
+    public static class GradientBackgroundPanel extends JPanel {
+        public GradientBackgroundPanel(JPanel content) {
+            setLayout(new BorderLayout());
+            setOpaque(false);
+            add(content, BorderLayout.CENTER);
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            GradientPaint gp = new GradientPaint(0, 0, Main.AppTheme.getBackgroundStart(), 0, getHeight(), Main.AppTheme.getBackgroundEnd());
+            g2.setPaint(gp);
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            g2.dispose();
+        }
+    }
+
+
+    public static class GlassPanel extends JPanel {
+        public GlassPanel() {
+            setOpaque(false);
+            setBorder(new EmptyBorder(14, 14, 14, 14));
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(new Color(20, 26, 41));
+            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 24, 24);
+            g2.setColor(Main.AppTheme.getBorderGlass());
+            g2.setStroke(new BasicStroke(1.2f));
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 24, 24);
+            g2.dispose();
+        }
+    }
+
+
+    public static class PulsingGlassPanel extends GlassPanel {
+        private float pulseAlpha = 0.4f;
+        private boolean increasing = true;
+        private final javax.swing.Timer pulseTimer;
+
+
+        public PulsingGlassPanel() {
+            super();
+            pulseTimer = new javax.swing.Timer(40, e -> {
+                if (!isShowing()) return;
+                if (increasing) {
+                    pulseAlpha += 0.015f;
+                    if (pulseAlpha >= 0.85f) increasing = false;
+                } else {
+                    pulseAlpha -= 0.015f;
+                    if (pulseAlpha <= 0.4f) increasing = true;
+                }
+                repaint();
+            });
+            pulseTimer.start();
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+            Color baseBg = Main.AppTheme.getBackgroundStart();
+            Color glowBg = new Color(
+                    baseBg.getRed(),
+                    baseBg.getGreen(),
+                    baseBg.getBlue(),
+                    (int) (35 + (20 * pulseAlpha))
+            );
+            g2.setColor(glowBg);
+            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 24, 24);
+
+
+            Color borderGlow = Main.AppTheme.getSecondaryAccent();
+            Color glowingBorder = new Color(
+                    borderGlow.getRed(),
+                    borderGlow.getGreen(),
+                    borderGlow.getBlue(),
+                    (int) (40 + (120 * pulseAlpha))
+            );
+            g2.setColor(glowingBorder);
+            g2.setStroke(new BasicStroke(1.5f));
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 24, 24);
+            g2.dispose();
+        }
+    }
+
+
+    public static class ModernButton extends JButton {
+        private final Color baseColor;
+        private boolean isHovered = false;
+
+
+        public ModernButton(String text, Color bg) {
+            super(text);
+            this.baseColor = bg;
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setForeground(Color.WHITE);
+            setFont(Main.AppTheme.getFont(Font.BOLD, 13));
+            setPreferredSize(new Dimension(340, 50));
+
+
+            addMouseListener(new MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) { isHovered = true; repaint(); }
+                @Override public void mouseExited(MouseEvent e) { isHovered = false; repaint(); }
+            });
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            Color drawColor = isHovered ? baseColor.brighter() : baseColor;
+            g2.setColor(drawColor);
+            g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 22, 22));
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+
+    public static class GlassTextField extends JTextField {
+        public GlassTextField(int columns) {
+            super(columns);
+            setOpaque(false);
+            setForeground(Main.AppTheme.getTextColor());
+            setCaretColor(Main.AppTheme.getAccent());
+            setFont(Main.AppTheme.getFont(Font.PLAIN, 14));
+            setBorder(BorderFactory.createCompoundBorder(
+                    new RoundBorder(Main.AppTheme.getBorderGlass(), 12),
+                    new EmptyBorder(8, 12, 8, 12)
+            ));
+            setBackground(new Color(255, 255, 255, 6));
+        }
+
+
+        public static class RoundBorder extends AbstractBorder {
+            private final Color color;
+            private final int radius;
+
+
+            public RoundBorder(Color color, int radius) {
+                this.color = color;
+                this.radius = radius;
+            }
+
+
+            @Override
+            public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.drawRoundRect(x, y, width - 1, height - 1, radius, radius);
+                g2.dispose();
+            }
+        }
+    }
+
+
+    // --- CUSTOM EMAIL DISPATCH QR DIALOG POP-UP ---
+    public static class DispatchQRDialog extends JDialog {
+        public DispatchQRDialog(Frame parent, String email, String refCode) {
+            super(parent, "Lumina Auto Dispatch", true);
+            setSize(340, 410);
+            setLocationRelativeTo(parent);
+            setResizable(false);
+
+
+            JPanel root = new JPanel();
+            root.setLayout(new BoxLayout(root, BoxLayout.Y_AXIS));
+            root.setBackground(new Color(11, 15, 26));
+            root.setBorder(new EmptyBorder(25, 20, 20, 20));
+
+
+            JLabel title = new JLabel("Email Dispatch Sent!", JLabel.CENTER);
+            title.setFont(Main.AppTheme.getFont(Font.BOLD, 18));
+            title.setForeground(Main.AppTheme.getAccent());
+            title.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+            JLabel body = new JLabel("<html><center>An official sensory ticket confirmation was successfully routed to <b>" + email + "</b></center></html>", JLabel.CENTER);
+            body.setFont(Main.AppTheme.getFont(Font.PLAIN, 12));
+            body.setForeground(Color.LIGHT_GRAY);
+            body.setAlignmentX(Component.CENTER_ALIGNMENT);
+            body.setMaximumSize(new Dimension(280, 50));
+
+
+            JPanel qrWrapper = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Main.QRGenerator.drawMatrix((Graphics2D) g, 10, 10, 130, refCode);
+                }
+            };
+            qrWrapper.setPreferredSize(new Dimension(150, 150));
+            qrWrapper.setMaximumSize(new Dimension(150, 150));
+            qrWrapper.setOpaque(false);
+            qrWrapper.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+            JLabel codeLbl = new JLabel("SCAN KIOSK CODE: " + refCode, JLabel.CENTER);
+            codeLbl.setFont(Main.AppTheme.getFont(Font.BOLD, 12));
+            codeLbl.setForeground(Main.AppTheme.getGold());
+            codeLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+            Main.ModernButton btnDismiss = new Main.ModernButton("COMPLETE SESSION", Main.AppTheme.getAccent());
+            btnDismiss.setPreferredSize(new Dimension(280, 40));
+            btnDismiss.setAlignmentX(Component.CENTER_ALIGNMENT);
+            btnDismiss.addActionListener(e -> dispose());
+
+
+            root.add(title);
+            root.add(Box.createRigidArea(new Dimension(0, 12)));
+            root.add(body);
+            root.add(Box.createRigidArea(new Dimension(0, 15)));
+            root.add(qrWrapper);
+            root.add(Box.createRigidArea(new Dimension(0, 12)));
+            root.add(codeLbl);
+            root.add(Box.createRigidArea(new Dimension(0, 20)));
+            root.add(btnDismiss);
+
+
+            setContentPane(root);
+        }
+    }
+
+
+    // --- COMPONENT VECTOR ART (PRISM LOGO & FLAGS) ---
+    public static class LuminaLogoPanel extends JPanel {
+        private double rotateAngle = 0;
+
+
+        public LuminaLogoPanel() {
+            setPreferredSize(new Dimension(140, 140));
+            setOpaque(false);
+            javax.swing.Timer timer = new javax.swing.Timer(40, e -> {
+                rotateAngle += 1.5;
+                repaint();
+            });
+            timer.start();
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int cx = getWidth() / 2;
+            int cy = getHeight() / 2;
+
+
+            g2.rotate(Math.toRadians(rotateAngle), cx, cy);
+            float[] dists = {0.1f, 0.9f};
+            Color[] colors = {Main.AppTheme.getAccent(), new Color(0, 0, 0, 0)};
+            RadialGradientPaint rgb = new RadialGradientPaint(cx, cy, 65, dists, colors);
+            g2.setPaint(rgb);
+            g2.fillOval(cx - 65, cy - 65, 130, 130);
+
+
+            g2.rotate(Math.toRadians(-rotateAngle * 2), cx, cy);
+            g2.setColor(Main.AppTheme.getSecondaryAccent());
+            g2.setStroke(new BasicStroke(2f));
+            g2.drawLine(cx, cy, cx - 40, cy + 40);
+            g2.setColor(Main.AppTheme.getAccent());
+            g2.drawLine(cx, cy, cx + 40, cy + 40);
+
+
+            Path2D.Float prism = new Path2D.Float();
+            prism.moveTo(cx, cy - 28);
+            prism.lineTo(cx + 25, cy + 20);
+            prism.lineTo(cx - 25, cy + 20);
+            prism.closePath();
+
+
+            g2.setPaint(new GradientPaint(cx, cy - 28, Color.WHITE, cx, cy + 20, new Color(255, 255, 255, 50)));
+            g2.fill(prism);
+            g2.setColor(Main.AppTheme.getGold());
+            g2.setStroke(new BasicStroke(2.5f));
+            g2.draw(prism);
+
+
+            g2.dispose();
+        }
+    }
+
+
+    public static class ProgrammaticFlag {
+        public static void drawPhilippines(Graphics2D g2, int w, int h) {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(Color.WHITE);
+            g2.fillRect(0, 0, w, h);
+
+
+            g2.setColor(new Color(0, 56, 168));
+            g2.fillRect(0, 0, w, h / 2);
+
+
+            g2.setColor(new Color(206, 17, 38));
+            g2.fillRect(0, h / 2, w, h / 2);
+
+
+            Path2D.Float triangle = new Path2D.Float();
+            triangle.moveTo(0, 0);
+            triangle.lineTo(w / 2.2f, h / 2f);
+            triangle.lineTo(0, h);
+            triangle.closePath();
+            g2.setColor(Color.WHITE);
+            g2.fill(triangle);
+
+
+            g2.setColor(new Color(242, 193, 46));
+            int sx = w / 7;
+            int sy = h / 2;
+            g2.fillOval(sx - 4, sy - 4, 8, 8);
+
+
+            g2.setStroke(new BasicStroke(1));
+            for (int i = 0; i < 8; i++) {
+                double angle = Math.toRadians(i * 45);
+                g2.drawLine(sx, sy, (int)(sx + 6 * Math.cos(angle)), (int)(sy + 6 * Math.sin(angle)));
+            }
+
+
+            g2.setColor(new Color(242, 193, 46));
+            g2.fillRect(w / 18, h / 4, 2, 2);
+            g2.fillRect(w / 18, 3 * h / 4, 2, 2);
+            g2.fillRect(w / 3, h / 2, 2, 2);
+        }
+
+
+        public static void drawTaiwan(Graphics2D g2, int w, int h) {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+            g2.setColor(new Color(254, 0, 0));
+            g2.fillRect(0, 0, w, h);
+
+
+            g2.setColor(new Color(0, 0, 149));
+            g2.fillRect(0, 0, w / 2, h / 2);
+
+
+            g2.setColor(Color.WHITE);
+            int cx = w / 4;
+            int cy = h / 4;
+            g2.fillOval(cx - 3, cy - 3, 6, 6);
+
+
+            g2.setStroke(new BasicStroke(1.2f));
+            for (int i = 0; i < 12; i++) {
+                double angle = Math.toRadians(i * 30);
+                g2.drawLine(cx, cy, (int)(cx + 6 * Math.cos(angle)), (int)(cy + 6 * Math.sin(angle)));
+            }
+        }
+    }
+
+
+    public static class FlagCanvas extends JPanel {
+        private final boolean isPhilippines;
+
+
+        public FlagCanvas(boolean isPH) {
+            this.isPhilippines = isPH;
+            setPreferredSize(new Dimension(32, 20));
+            setOpaque(false);
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            if (isPhilippines) {
+                Main.ProgrammaticFlag.drawPhilippines(g2, getWidth(), getHeight());
+            } else {
+                Main.ProgrammaticFlag.drawTaiwan(g2, getWidth(), getHeight());
+            }
+            g2.setColor(Main.AppTheme.getBorderGlass());
+            g2.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+            g2.dispose();
+        }
+    }
+
+
+    // --- REAL MOVIE PORTRAIT ART / IMAGE POSTER CANVAS ---
+    public static class PosterCanvas extends JPanel {
+        private final String movieTitle;
+
+
+        public PosterCanvas(String title) {
+            this.movieTitle = title;
+            setPreferredSize(new Dimension(55, 80));
+            setOpaque(false);
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+            String cleanName = movieTitle.toLowerCase()
+                    .replaceAll(":", "")
+                    .replaceAll("&", "and")
+                    .replaceAll("[^a-z0-9]", "_")
+                    .replaceAll("__+", "_");
+            String filePath = "images/" + cleanName + ".jpg";
+
+
+            ImageIcon scaledIcon = Main.getScaledImage(filePath, getWidth(), getHeight());
+
+
+            if (scaledIcon != null) {
+                g2.drawImage(scaledIcon.getImage(), 0, 0, this);
+                g2.setColor(Main.AppTheme.getBorderGlass());
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
+            } else {
+                Main.PosterArt.paint(g2, getWidth(), getHeight(), movieTitle);
+            }
+            g2.dispose();
+        }
+    }
+
+
+    public static class PosterArt {
+        public static void paint(Graphics2D g2, int w, int h, String title) {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+            g2.setColor(new Color(15, 20, 30));
+            g2.fillRoundRect(0, 0, w, h, 14, 14);
+
+
+            if (title.toLowerCase().contains("godzilla")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(255, 0, 128), w, h, new Color(255, 90, 0)));
+                g2.fillOval(w/2 - 20, h/2 - 20, 40, 40);
+                g2.setColor(Color.BLACK);
+                g2.fillRect(0, h - 25, w, 25);
+                g2.setColor(new Color(255, 255, 255, 120));
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.drawOval(w/2 - 20, h/2 - 20, 40, 40);
+            } else if (title.toLowerCase().contains("inside out")) {
+                g2.setColor(new Color(0, 229, 255, 200)); g2.fillOval(10, 15, 20, 20);
+                g2.setColor(new Color(255, 191, 0, 200)); g2.fillOval(28, 12, 16, 16);
+                g2.setColor(new Color(150, 0, 255, 200)); g2.fillOval(18, 35, 22, 22);
+                g2.setColor(new Color(255, 40, 40, 150)); g2.fillOval(26, 40, 14, 14);
+            } else if (title.toLowerCase().contains("dune")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(218, 145, 0), 0, h, new Color(110, 50, 10)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(new Color(255, 255, 220));
+                g2.fillOval(w - 20, 12, 10, 10);
+                g2.fillOval(w - 32, 20, 5, 5);
+                g2.setColor(Color.BLACK);
+                g2.setStroke(new BasicStroke(2));
+                g2.drawArc(-15, h - 30, w + 30, 40, 0, 180);
+            } else if (title.toLowerCase().contains("deadpool")) {
+                g2.setColor(new Color(160, 10, 20));
+                g2.fillRoundRect(4, 4, w/2 - 4, h - 8, 8, 8);
+                g2.setColor(new Color(210, 160, 10));
+                g2.fillRoundRect(w/2, 4, w/2 - 4, h - 8, 8, 8);
+                g2.setColor(Color.BLACK);
+                g2.fillOval(w/2 - 12, h/2 - 10, 10, 16);
+                g2.fillOval(w/2 + 2, h/2 - 10, 10, 16);
+            } else if (title.toLowerCase().contains("spirited away")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(75, 0, 130), 0, h, new Color(139, 0, 0)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(new Color(255, 215, 0));
+                g2.fillOval(10, 12, 8, 8);
+                g2.setColor(Color.BLACK);
+                g2.fillRect(0, h - 18, w, 18);
+            } else if (title.toLowerCase().contains("interstellar")) {
+                g2.setColor(Color.BLACK);
+                g2.fillRect(0, 0, w, h);
+                g2.setPaint(new GradientPaint(0, h/2, new Color(255, 191, 0, 240), w, h/2, new Color(255, 120, 0, 50)));
+                g2.setStroke(new BasicStroke(4));
+                g2.drawArc(-10, h/2 - 12, w + 20, 24, 0, 180);
+                g2.setColor(Color.BLACK);
+                g2.fillOval(w/2 - 6, h/2 - 6, 12, 12);
+            } else if (title.toLowerCase().contains("crouching tiger") || title.toLowerCase().contains("hidden dragon")) {
+                g2.setColor(new Color(245, 240, 225));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(new Color(40, 40, 40));
+                g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.draw(new CubicCurve2D.Float(10, 10, w/3, h-20, 2*w/3, 20, w-10, h-10));
+                g2.setColor(new Color(180, 10, 20));
+                g2.fillRect(w - 15, h - 20, 8, 12);
+            } else if (title.toLowerCase().contains("manila") || title.toLowerCase().contains("claws of light")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(230, 90, 10), 0, h, new Color(50, 10, 10)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(new Color(255, 215, 0, 180));
+                g2.fillOval(w/2 - 16, 20, 32, 32);
+                g2.setColor(Color.BLACK);
+                g2.fillRect(5, h - 35, 12, 35);
+                g2.fillRect(20, h - 25, 15, 25);
+                g2.fillRect(38, h - 40, 12, 40);
+            } else if (title.toLowerCase().contains("life of pi")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(0, 110, 160), 0, h, new Color(0, 20, 55)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(new Color(0, 255, 255, 150));
+                g2.fillOval(10, 40, 4, 4); g2.fillOval(35, 30, 3, 3);
+                g2.fillOval(20, 55, 5, 5);
+                g2.setColor(new Color(255, 130, 0));
+                g2.fillArc(w/2 - 12, h - 20, 24, 10, 0, -180);
+            } else if (title.toLowerCase().contains("dark knight")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(20, 30, 40), w, h, Color.BLACK));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(new Color(255, 200, 0, 180));
+                g2.fillOval(w/2 - 15, h/2 - 10, 30, 20);
+                g2.setColor(Color.BLACK);
+                g2.fillOval(w/2 - 19, h/2 - 18, 12, 16);
+                g2.fillOval(w/2 + 7, h/2 - 18, 12, 16);
+            } else if (title.toLowerCase().contains("avatar")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(0, 191, 255), w, h, new Color(0, 0, 128)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(Color.WHITE);
+                g2.drawOval(w/2 - 15, h/2 - 15, 30, 30);
+            } else if (title.toLowerCase().contains("star wars")) {
+                g2.setColor(Color.BLACK);
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(Color.CYAN);
+                g2.setStroke(new BasicStroke(3));
+                g2.drawLine(w/2, 5, w/2, h - 15);
+            } else if (title.toLowerCase().contains("avengers")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(139, 0, 0), w, h, new Color(25, 25, 112)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(Color.WHITE);
+                g2.drawString("A", w/2 - 4, h/2 + 5);
+            } else if (title.toLowerCase().contains("blade runner")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(255, 20, 147), w, h, new Color(75, 0, 130)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(Color.CYAN);
+                g2.drawLine(0, h/2, w, h/2);
+            } else if (title.toLowerCase().contains("dunkirk")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(100, 115, 130), 0, h, new Color(20, 30, 40)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(Color.WHITE);
+                g2.drawLine(0, h - 20, w, h - 20);
+            } else if (title.toLowerCase().contains("inception")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(60, 60, 80), 0, h, new Color(10, 10, 20)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(Main.AppTheme.getAccent());
+                g2.draw(new Arc2D.Float(w/2-15, h/2-15, 30, 30, 45, 270, Arc2D.OPEN));
+            } else if (title.toLowerCase().contains("jaguar")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(200, 140, 20), 0, h, new Color(30, 20, 5)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(Color.BLACK);
+                g2.fillOval(w/2 - 15, h/2 - 15, 30, 30);
+            } else if (title.toLowerCase().contains("bayan ko")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(180, 20, 30), 0, h, Color.BLACK));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(Color.WHITE);
+                g2.drawLine(10, h/2, w-10, h/2);
+            } else if (title.toLowerCase().contains("brokeback")) {
+                g2.setPaint(new GradientPaint(0, 0, new Color(34, 139, 34), 0, h, new Color(20, 40, 20)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(Color.WHITE);
+                g2.fillOval(w/2-10, h/2-25, 20, 20);
+            } else {
+                g2.setPaint(new GradientPaint(0, 0, new Color(100, 50, 150), w, h, new Color(30, 20, 60)));
+                g2.fillRect(0, 0, w, h);
+                g2.setColor(new Color(255, 255, 255, 60));
+                g2.drawRect(5, 5, w - 10, h - 10);
+            }
+
+
+            g2.setColor(Main.AppTheme.getBorderGlass());
+            g2.setStroke(new BasicStroke(1));
+            g2.drawRoundRect(0, 0, w - 1, h - 1, 14, 14);
+        }
+    }
+
+
+    // --- POSTER INTERACTIVE PREVIEW DIALOG ---
+    public static class PosterPreviewDialog extends JDialog {
+        public PosterPreviewDialog(Frame owner, String movieTitle, String sensoryNotes) {
+            super(owner, "Film Poster View - " + movieTitle, true);
+            setSize(320, 480);
+            setLocationRelativeTo(owner);
+            setResizable(false);
+
+
+            JPanel root = new JPanel(new BorderLayout());
+            root.setBackground(new Color(11, 15, 26));
+            root.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+
+            JPanel artContainer = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+                    String cleanName = movieTitle.toLowerCase()
+                            .replaceAll(":", "")
+                            .replaceAll("&", "and")
+                            .replaceAll("[^a-z0-9]", "_")
+                            .replaceAll("__+", "_");
+                    String filePath = "images/" + cleanName + ".jpg";
+                    ImageIcon scaledIcon = Main.getScaledImage(filePath, getWidth(), getHeight());
+
+
+                    if (scaledIcon != null) {
+                        g2.drawImage(scaledIcon.getImage(), 0, 0, this);
+                        g2.setColor(Main.AppTheme.getBorderGlass());
+                        g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
+                    } else {
+                        Main.PosterArt.paint(g2, getWidth(), getHeight(), movieTitle);
+                    }
+                    g2.dispose();
+                }
+            };
+            artContainer.setPreferredSize(new Dimension(180, 260));
+
+
+            JPanel content = new JPanel();
+            content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+            content.setOpaque(false);
+
+
+            JLabel titleLbl = new JLabel("<html><center><b>" + movieTitle.toUpperCase() + "</b></center></html>", JLabel.CENTER);
+            titleLbl.setForeground(Color.WHITE);
+            titleLbl.setFont(Main.AppTheme.getFont(Font.BOLD, 14));
+            titleLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+            JTextArea notesArea = new JTextArea(sensoryNotes); // Fixed duplicate notesArea constructor typo
+            notesArea.setFont(Main.AppTheme.getFont(Font.PLAIN, 12));
+            notesArea.setForeground(Color.LIGHT_GRAY);
+            notesArea.setLineWrap(true);
+            notesArea.setWrapStyleWord(true);
+            notesArea.setEditable(false);
+            notesArea.setOpaque(false);
+            notesArea.setBorder(new EmptyBorder(10, 0, 10, 0));
+
+
+            Main.ModernButton closeBtn = new Main.ModernButton("DISMISS", Main.AppTheme.getAccent());
+            closeBtn.setPreferredSize(new Dimension(280, 40));
+            closeBtn.addActionListener(e -> dispose());
+
+
+            content.add(titleLbl);
+            content.add(Box.createRigidArea(new Dimension(0, 10)));
+            content.add(notesArea);
+
+
+            root.add(artContainer, BorderLayout.CENTER);
+            root.add(content, BorderLayout.SOUTH);
+
+
+            setContentPane(root);
+        }
+    }
+
+
+    // --- MINI VISUAL SEAT MAP COMPONENT ---
+    public static class VisualMiniSeatMap extends JPanel {
+        private final List<String> userSeats;
+
+
+        public VisualMiniSeatMap(List<String> seats) {
+            this.userSeats = (seats != null) ? seats : new ArrayList<>();
+            setPreferredSize(new Dimension(160, 120));
+            setOpaque(false);
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+            int rows = 6;
+            int cols = 6;
+            int rectW = 14;
+            int rectH = 12;
+            int gap = 4;
+
+
+            int startX = (getWidth() - (cols * (rectW + gap) - gap)) / 2;
+            int startY = (getHeight() - (rows * (rectH + gap) - gap)) / 2;
+
+
+            for (int r = 0; r < rows; r++) {
+                for (int c = 0; c < cols; c++) {
+                    int index = r * cols + c + 1;
+                    String seatId = "S" + index;
+
+
+                    int x = startX + c * (rectW + gap);
+                    int y = startY + r * (rectH + gap);
+
+
+                    if (userSeats.contains(seatId)) {
+                        g2.setColor(Main.AppTheme.getAccent());
+                        g2.fillRoundRect(x, y, rectW, rectH, 4, 4);
+                        g2.setColor(Color.WHITE);
+                        g2.setFont(new Font("SansSerif", Font.BOLD, 6));
+                        g2.drawString(seatId, x + 1, y + 8);
+                    } else {
+                        g2.setColor(new Color(255, 255, 255, 40));
+                        g2.drawRoundRect(x, y, rectW, rectH, 4, 4);
+                    }
+                }
+            }
+            g2.dispose();
+        }
+    }
+
+
+    // --- MINIMALIST ANIMATED FILM STRIP FRAME ---
+    public static class MinimalistMovieFrame extends JPanel {
+        private int offsetX = 0;
+
+
+        public MinimalistMovieFrame() {
+            setPreferredSize(new Dimension(400, 60));
+            setOpaque(false);
+
+
+            javax.swing.Timer timer = new javax.swing.Timer(35, e -> {
+                offsetX -= 2;
+                if (offsetX <= -80) {
+                    offsetX = 0;
+                }
+                repaint();
+            });
+            timer.start();
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+            int h = getHeight();
+            int w = getWidth();
+
+
+            g2.setColor(new Color(15, 23, 42, 180));
+            g2.fillRoundRect(0, 5, w, h - 10, 10, 10);
+            g2.setColor(Main.AppTheme.getBorderGlass());
+            g2.setStroke(new BasicStroke(1.2f));
+            g2.drawRoundRect(0, 5, w - 1, h - 11, 10, 10);
+
+
+            int cellSize = 65;
+            int gap = 15;
+            int startX = offsetX;
+
+
+            while (startX < w + cellSize) {
+                g2.setColor(new Color(255, 255, 255, 15));
+                g2.fillRect(startX, 12, cellSize, h - 24);
+                g2.setColor(Main.AppTheme.getBorderGlass());
+                g2.drawRect(startX, 12, cellSize, h - 24);
+
+
+                g2.setColor(Main.AppTheme.getGold());
+                g2.fillOval(startX + cellSize / 2 - 3, h / 2 - 3, 6, 6);
+
+
+                g2.setColor(Color.BLACK);
+                for (int sx = startX + 4; sx < startX + cellSize; sx += 12) {
+                    g2.fillRect(sx, 7, 6, 4);
+                    g2.fillRect(sx, h - 11, 6, 4);
+                }
+
+
+                startX += cellSize + gap;
+            }
+            g2.dispose();
+        }
+    }
+
+
+    // --- ANIMATED CINEMA PROJECTOR PANEL ---
+    public static class AnimatedProjectorCanvas extends JPanel {
+        private double rotationAngle = 0;
+        private double glowIntensity = 1.0;
+        private boolean glowFading = true;
+
+
+        public AnimatedProjectorCanvas() {
+            setPreferredSize(new Dimension(400, 140));
+            setOpaque(false);
+
+
+            javax.swing.Timer animTimer = new javax.swing.Timer(30, e -> {
+                rotationAngle += 4.0;
+                if (rotationAngle >= 360) rotationAngle = 0;
+
+
+                if (glowFading) {
+                    glowIntensity -= 0.02;
+                    if (glowIntensity <= 0.4) glowFading = false;
+                } else {
+                    glowIntensity += 0.02;
+                    if (glowIntensity >= 1.0) glowFading = true;
+                }
+                repaint();
+            });
+            animTimer.start();
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+            int cx = getWidth() / 2;
+            int cy = 90;
+
+
+            int beamY = cy - 10;
+            int beamHeight = 85;
+            int beamWidth = (int) (180 * glowIntensity);
+            int[] px = {cx, cx - beamWidth / 2, cx + beamWidth / 2};
+            int[] py = {beamY, beamY - beamHeight, beamY - beamHeight};
+
+
+            Color beamColor = Main.AppTheme.sensorySafeMode
+                    ? new Color(110, 160, 210, (int) (30 * glowIntensity))
+                    : new Color(255, 0, 120, (int) (40 * glowIntensity));
+            g2.setColor(beamColor);
+            g2.fillPolygon(px, py, 3);
+
+
+            g2.setColor(new Color(25, 30, 41));
+            g2.fillRoundRect(cx - 25, cy - 15, 50, 30, 8, 8);
+            g2.setColor(Color.DARK_GRAY);
+            g2.fillRect(cx - 15, cy - 23, 30, 8);
+
+
+            g2.setColor(new Color(40, 45, 55));
+            int rx1 = cx - 20;
+            int ry1 = cy - 35;
+            g2.fillOval(rx1 - 18, ry1 - 18, 36, 36);
+
+
+            g2.setColor(Color.LIGHT_GRAY);
+            g2.setStroke(new BasicStroke(2f));
+            double rad = Math.toRadians(rotationAngle);
+            g2.drawLine(rx1, ry1, (int)(rx1 + 16 * Math.cos(rad)), (int)(ry1 + 16 * Math.sin(rad)));
+            g2.drawLine(rx1, ry1, (int)(rx1 - 16 * Math.cos(rad)), (int)(ry1 - 16 * Math.sin(rad)));
+            g2.drawLine(rx1, ry1, (int)(rx1 + 16 * Math.sin(rad)), (int)(ry1 - 16 * Math.cos(rad)));
+
+
+            int rx2 = cx + 20;
+            int ry2 = cy - 35;
+            g2.setColor(new Color(40, 45, 55));
+            g2.fillOval(rx2 - 18, ry2 - 18, 36, 36);
+
+
+            g2.setStroke(new BasicStroke(2f));
+            double radOpp = Math.toRadians(-rotationAngle);
+            g2.drawLine(rx2, ry2, (int)(rx2 + 16 * Math.cos(radOpp)), (int)(ry2 + 16 * Math.sin(radOpp)));
+            g2.drawLine(rx2, ry2, (int)(rx2 - 16 * Math.cos(radOpp)), (int)(ry2 - 16 * Math.sin(radOpp)));
+            g2.drawLine(rx2, ry2, (int)(rx2 + 16 * Math.sin(radOpp)), (int)(ry2 - 16 * Math.cos(radOpp)));
+
+
+            g2.setColor(Color.LIGHT_GRAY);
+            g2.drawOval(cx - 5, cy - 5, 10, 10);
+
+
+            g2.dispose();
+        }
+    }
+
+
+    // --- ANIMATED CINEMA PROJECTOR REEL CANVAS (SENSORY ENGAGEMENT WAVE) ---
+    public static class AmbientCinemaReelCanvas extends JPanel {
+        private double angle = 0;
+        private final List<Point2D.Float> dustParticles = new ArrayList<>();
+
+
+        public AmbientCinemaReelCanvas() {
+            setPreferredSize(new Dimension(400, 100));
+            setOpaque(false);
+
+
+            Random rand = new Random();
+            for (int i = 0; i < 15; i++) {
+                dustParticles.add(new Point2D.Float(rand.nextFloat() * 400, rand.nextFloat() * 100));
+            }
+
+
+            javax.swing.Timer timer = new javax.swing.Timer(30, e -> {
+                angle += 2.0;
+                if (angle >= 360) angle = 0;
+
+
+                for (Point2D.Float p : dustParticles) {
+                    p.y -= 0.5f;
+                    if (p.y < 0) {
+                        p.y = 100;
+                        p.x = rand.nextFloat() * getWidth();
+                    }
+                }
+                repaint();
+            });
+            timer.start();
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+            int w = getWidth();
+            int h = getHeight();
+
+
+            int sourceX = 60;
+            int sourceY = h / 2;
+            Path2D.Float beam = new Path2D.Float();
+            beam.moveTo(sourceX, sourceY);
+            beam.lineTo(w, sourceY - 40);
+            beam.lineTo(w, sourceY + 40);
+            beam.closePath();
+
+
+            Color accentColor = Main.AppTheme.getAccent();
+            Color beamColor = new Color(accentColor.getRed(), accentColor.getGreen(), accentColor.getBlue(), 35);
+            g2.setPaint(new GradientPaint(sourceX, sourceY, beamColor, w, sourceY, new Color(0, 0, 0, 0)));
+            g2.fill(beam);
+
+
+            g2.setColor(new Color(255, 255, 255, 40));
+            g2.setStroke(new BasicStroke(1.5f));
+            drawReel(g2, sourceX, sourceY, 28, angle);
+            drawReel(g2, sourceX + 45, sourceY, 22, -angle * 1.2);
+
+
+            g2.setColor(new Color(255, 255, 255, 60));
+            g2.drawLine(sourceX, sourceY - 28, sourceX + 45, sourceY - 22);
+            g2.drawLine(sourceX, sourceY + 28, sourceX + 45, sourceY + 22);
+
+
+            g2.setColor(new Color(255, 255, 255, 120));
+            for (Point2D.Float p : dustParticles) {
+                float px = p.x;
+                if (px > w) px = px % w;
+                g2.fill(new Ellipse2D.Float(px, p.y, 2, 2));
+            }
+
+
+            g2.dispose();
+        }
+
+
+        private void drawReel(Graphics2D g2, int cx, int cy, int radius, double rot) {
+            g2.drawOval(cx - radius, cy - radius, radius * 2, radius * 2);
+            g2.drawOval(cx - 5, cy - 5, 10, 10);
+            for (int i = 0; i < 5; i++) {
+                double spokeAngle = Math.toRadians(rot + i * (360.0 / 5.0));
+                int sx = (int) (cx + radius * Math.cos(spokeAngle));
+                int sy = (int) (cy + radius * Math.sin(spokeAngle));
+                g2.drawLine(cx, cy, sx, sy);
+            }
+        }
+    }
+
+
+    // --- CORE DATA MODELS ---
+    public static class User {
+        private String username;
+        private String password;
+        private String fullName = "";
+        private String email = "";
+        private String phone = "";
+        private String country = "Philippines";
+
+
+        public User(String username, String password) {
+            this.username = username;
+            this.password = password;
+        }
+    }
+
+
+    public static class Movie {
+        private String title;
+        private String genre;
+        private String releaseEra;
+        private String exactDate;
+        private String director;
+        private String sensoryProfile;
+        private boolean isSensorySafe;
+        private double basePriceUSD;
+
+
+        public Movie(String title, String genre, String era, String date, String director, String profile, boolean isSafe, double priceUSD) {
+            this.title = title;
+            this.genre = genre;
+            this.releaseEra = era;
+            this.exactDate = date;
+            this.director = director;
+            this.sensoryProfile = profile;
+            this.isSensorySafe = isSafe;
+            this.basePriceUSD = priceUSD;
+        }
+
+
+        public double getPriceInCurrency(String country) {
+            if ("Taiwan".equalsIgnoreCase(country)) {
+                return basePriceUSD * 32.0;
+            } else {
+                return basePriceUSD * 56.0;
+            }
+        }
+
+
+        public String getCurrencySymbol(String country) {
+            return "Taiwan".equalsIgnoreCase(country) ? "NT$" : "₱";
+        }
+    }
+
+
+    public static class Booking {
+        private Movie movie;
+        private String userEmail = "";
+        private String tier = "Individual Booking";
+        private String selectedVenue = "";
+        private String selectedDate = "";
+        private String selectedTime = "";
+
+
+        private int adultCount = 1;
+        private int childCount = 0;
+        private int pwdCount = 0;
+
+
+        private boolean foodPopcorn = false;
+        private boolean foodChamomileTea = false;
+        private boolean foodCalmBites = false;
+
+
+        private String paymentMethod = "Credit/Debit Card";
+        private List<String> selectedSeats = new ArrayList<>();
+        private double calculatedPrice = 0.0;
+        private String referenceCode = "";
+
+
+        public void calculateFinalPrice(String country) {
+            double ratePerTicket = movie.getPriceInCurrency(country);
+            double total = 0;
+
+
+            total += adultCount * ratePerTicket;
+            total += childCount * (ratePerTicket * 0.70);
+            total += pwdCount * (ratePerTicket * 0.60);
+
+
+            double currencyFactor = "Taiwan".equalsIgnoreCase(country) ? 32.0 : 56.0;
+            if (foodPopcorn) total += 3.0 * currencyFactor;
+            if (foodChamomileTea) total += 2.5 * currencyFactor;
+            if (foodCalmBites) total += 3.5 * currencyFactor;
+
+
+            calculatedPrice = total;
+        }
+    }
+
+
+    // --- COMPACT ARCHIVE REGISTRY ---
+    public static class DirectorArchive {
+        public static final String[] DIRECTORS = {
+                "CHRISTOPHER NOLAN", "LINO BROCKA", "ANG LEE"
+        };
+        public static final String[] BIOS = {
+                "Christopher Nolan is a highly celebrated British-American filmmaker renowned for his mind-bending narratives, non-linear timelines, and dedication to practical visual effects. Over a stellar three-decade career, his critically acclaimed films have grossed over five billion dollars globally, earning him multiple Academy Awards and cementing his influence in cinematic history. He represents a rare breed of commercial auteur who maintains absolute creative control over monumental studio blockbusters.<br><br>He consistently explores complex philosophical concepts including the manipulation of time, the fragility of memory, and the intricate architecture of human dreams. His refusal to rely heavily on green screens or computer-generated imagery ensures that each film delivers a deeply visceral, authentic, and emotionally striking experience. By prioritizing physical, in-camera film mechanics, Nolan continues to challenge and redefine the boundaries of modern storytelling.",
+                "Lino Brocka stands as one of the most influential Filipino directors of all time, widely revered for his courageous social realism and passionate political activism during the Second Golden Age of Philippine Cinema. Operating under a highly restrictive political regime, he bravely utilized his films to shine a light on the raw struggles of marginalized urban communities. He single-handedly elevated Southeast Asian cinema onto the global festival circuit with his unflinching gaze.<br><br>His legendary masterworks, such as \"Manila in the Claws of Light\" and \"Jaguar,\" introduced the world to the depth of Southeast Asian storytelling and secured his legacy as a cinematic pioneer. Beyond his creative vision behind the lens, Brocka was a dedicated champion of free expression and human rights, demonstrating how cinema can serve as a catalyst for genuine societal change. His artistic legacy remains an enduring blueprint for socially conscious artists worldwide.",
+                "Ang Lee is a master Taiwanese filmmaker celebrated globally for his extraordinary versatility, deep emotional sensitivity, and unique ability to bridge Eastern and Western cultures. He is one of the few directors in history to win multiple Academy Awards for Best Director, proving his exceptional cross-cultural appeal and technical mastery. His films frequently depict the quiet struggles of individuals caught between societal traditions and deep personal desires.<br><br>His rich filmography seamlessly spans multiple diverse genres, ranging from poetic martial arts epics to breathtaking philosophical adventures that test the limits of human survival. By constantly pioneering advanced visual technologies, such as high frame rates and 3D space, Lee creates immersive cinematic environments that profoundly touch the human soul. His dedication to emotional honesty and technical innovation makes him a true pioneer of modern world cinema."
+        };
+    }
+
+
+    // --- APP SESSION STATE MANAGER ---
+    public static class SessionManager {
+        private static User registeredUser = null;
+        private static User currentUser = null;
+        private static final List<Movie> movieLibrary = new ArrayList<>();
+        private static Movie selectedMovie = null;
+        private static Booking currentBooking = null;
+        private static final List<Booking> pastBookings = new ArrayList<>();
+
+
+        static {
+            registeredUser = new User("lumina", "Lumina2026!");
+            registeredUser.fullName = "Desary";
+            registeredUser.email = "Desarybayut@gmail.com";
+            registeredUser.phone = "9123456789";
+            registeredUser.country = "Taiwan";
+
+
+            Movie dummyM1 = new Movie("Interstellar: Re-Release", "Sci-Fi / Drama", "2026", "June 2026", "Christopher Nolan", "Organic audio", true, 16.00);
+            Booking b1 = new Booking();
+            b1.movie = dummyM1; b1.selectedSeats.add("S12"); b1.selectedSeats.add("S18");
+            b1.selectedVenue = "SM Cinema Manila"; b1.selectedDate = "2026-06-15"; b1.selectedTime = "10:30 AM";
+            b1.calculatedPrice = 1792.00; b1.referenceCode = "LUM-198823"; b1.paymentMethod = "Credit/Debit Card";
+            b1.userEmail = "Desarybayut@gmail.com";
+            pastBookings.add(b1);
+
+
+            Movie dummyM2 = new Movie("Godzilla x Kong", "Action / Sci-Fi", "2026", "June 2026", "Adam Wingard", "Intense bass, vibrant neon aesthetics.", false, 15.00);
+            Booking b2 = new Booking();
+            b2.movie = dummyM2; b2.selectedSeats.add("S6");
+            b2.selectedVenue = "BGC High Street Central"; b2.selectedDate = "2026-07-20"; b2.selectedTime = "01:30 PM";
+            b2.calculatedPrice = 1344.00; b2.referenceCode = "LUM-437869"; b2.paymentMethod = "Credit/Debit Card";
+            b2.userEmail = "Desarybayut@gmail.com";
+            pastBookings.add(b2);
+
+
+            Movie dummyM3 = new Movie("Crouching Tiger, Hidden Dragon", "Wuxia / Classic", "2026", "July 2026", "Ang Lee", "Symphonic acoustics, flowing string tracks.", true, 13.00);
+            Booking b3 = new Booking();
+            b3.movie = dummyM3; b3.selectedSeats.addAll(Arrays.asList("S1", "S7", "S2", "S8", "S3", "S9", "S4", "S10", "S5", "S11"));
+            b3.selectedVenue = "Vie Show Taipei Qsquare"; b3.selectedDate = "2026-06-15"; b3.selectedTime = "10:30 AM";
+            b3.calculatedPrice = 2867.20; b3.referenceCode = "LUM-437861"; b3.paymentMethod = "Credit/Debit Card";
+            b3.userEmail = "Desarybayut@gmail.com";
+            pastBookings.add(b3);
+
+
+            Movie dummyM4 = new Movie("Inside Out 2", "Animation / Family", "2026", "June 2026", "Kelsey Mann", "Warm emotional narrative, soft transitions.", true, 12.00);
+            Booking b4 = new Booking();
+            b4.movie = dummyM4; b4.selectedSeats.add("S34");
+            b4.selectedVenue = "Vie Show Taipei Qsquare"; b4.selectedDate = "2026-06-15"; b4.selectedTime = "10:30 AM";
+            b4.calculatedPrice = 384.00; b4.referenceCode = "LUM-335895"; b4.paymentMethod = "Credit/Debit Card";
+            b4.userEmail = "Desarybayut@gmail.com";
+            pastBookings.add(b4);
+
+
+            movieLibrary.add(new Movie("Godzilla x Kong", "Action / Sci-Fi", "2026", "June 2026", "Adam Wingard", "Intense bass, vibrant neon aesthetics.", false, 15.00));
+            movieLibrary.add(new Movie("Inside Out 2", "Animation / Family", "2026", "June 2026", "Kelsey Mann", "Warm emotional narrative, soft transitions.", true, 12.00));
+            movieLibrary.add(new Movie("Dune: Part Three", "Sci-Fi / Epic", "2026", "July 2026", "Denis Villeneuve", "Rumble frequencies, low-lit desert visual hues.", false, 18.00));
+            movieLibrary.add(new Movie("Deadpool & Wolverine", "Action / Comedy", "2026", "July 2026", "Shawn Levy", "High contrast action, sharp volume shifts.", false, 15.00));
+            movieLibrary.add(new Movie("Spirited Away: Extended", "Fantasy", "2026", "June 2026", "Hayao Miyazaki", "Soothing orchestral atmosphere, quiet spaces.", true, 11.00));
+            movieLibrary.add(new Movie("Interstellar: Re-Release", "Sci-Fi / Drama", "2026", "June 2026", "Christopher Nolan", "Dynamic stellar soundscape, deep scale views.", true, 16.00));
+            movieLibrary.add(new Movie("Crouching Tiger, Hidden Dragon", "Wuxia / Classic", "2026", "July 2026", "Ang Lee", "Symphonic acoustics, flowing string tracks.", true, 13.00));
+            movieLibrary.add(new Movie("Manila in the Claws of Light", "Realism / Drama", "2026", "June 2026", "Lino Brocka", "Restored gritty urban tones, classic soundtrack.", false, 10.00));
+            movieLibrary.add(new Movie("Life of Pi", "Adventure / Philosophical", "2026", "July 2026", "Ang Lee", "Vivid bioluminescence scenes, ocean frequencies.", true, 12.00));
+            movieLibrary.add(new Movie("The Dark Knight: Sensory Cut", "Action / Crime", "2026", "July 2026", "Christopher Nolan", "Muted high frequencies, stable shadow hues.", true, 15.00));
+
+
+            movieLibrary.add(new Movie("Avatar 4: The Tulkun Rider", "Sci-Fi / Adventure", "Future", "December 2027", "James Cameron", "Immersive underwater visual dynamics, warm lighting.", true, 22.00));
+            movieLibrary.add(new Movie("Star Wars: New Jedi Order", "Sci-Fi / Space", "Future", "May 2027", "Sharmeen Obaid-Chinoy", "Vivid lightsaber energy beams, dramatic orchestrations.", false, 19.00));
+            movieLibrary.add(new Movie("Avengers: Secret Wars - Part 1", "Action / Fantasy", "Future", "May 2028", "Marvel Studio Director", "Multi-character focal layers, high cosmic scale graphics.", false, 25.00));
+            movieLibrary.add(new Movie("Blade Runner: Re-Echo", "Sci-Fi / Cyberpunk", "Future", "October 2027", "Denis Villeneuve", "Neon synthwave drone layers, steady visual frame rates.", true, 17.00));
+            movieLibrary.add(new Movie("Metropolis: 2028", "Sci-Fi / Vintage Cut", "Future", "January 2028", "Fritz Lang Re-cut Team", "High contrast black & white, industrial frequencies.", false, 15.00));
+        }
+    }
+
+
+    private final CardLayout cardLayout = new CardLayout();
+    private final JPanel mainContainer = new JPanel(cardLayout);
+
+
+    public Main() {
+        setTitle("Lumina | Sensory-Inclusive Booking System");
+        setSize(480, 870);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+
+
+        refreshAppLayout();
+        add(mainContainer);
+        setVisible(true);
+    }
+
+
+    public void navigateTo(String screenName) {
+        cardLayout.show(mainContainer, screenName);
+    }
+
+
+    public void refreshAppLayout() {
+        mainContainer.removeAll();
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.EntranceScreen(this)), "Entrance");
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.RegisterScreen(this)), "Register");
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.LoginScreen(this)), "Login");
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.ProfileScreen(this)), "Profile");
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.DashboardScreen(this)), "Dashboard");
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.DirectorBiosScreen(this)), "Library");
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.AboutLuminaScreen(this)), "AboutLumina");
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.UserProfileScreen(this)), "UserProfile");
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.TierBookingScreen(this)), "BookingSelection");
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.SeatSelectionScreen(this)), "Seats");
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.PaymentFormScreen(this)), "PaymentForm");
+        mainContainer.add(new Main.GradientBackgroundPanel(new Main.TicketScreen(this)), "Ticket");
+        mainContainer.revalidate();
+        mainContainer.repaint();
+    }
+
+
+    // --- SCREEN IMPLEMENTATIONS ---
+
+
+    // 1. Entrance Screen
+    public static class EntranceScreen extends JPanel {
+        public EntranceScreen(Main app) {
+            setLayout(new GridBagLayout());
+            setOpaque(false);
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0;
+            gbc.insets = new Insets(8, 20, 8, 20);
+
+
+            JPanel langPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
+            langPanel.setOpaque(false);
+
+
+            String[] langNames = {"EN", "TG", "BY", "ZH"};
+            Main.Language[] langs = {Main.Language.ENGLISH, Main.Language.TAGALOG, Main.Language.BISAYA, Main.Language.TRADITIONAL_CHINESE};
+
+
+            for (int i = 0; i < 4; i++) {
+                final Main.Language l = langs[i];
+                JButton lBtn = new JButton(langNames[i]);
+                lBtn.setFont(new Font("SansSerif", Font.BOLD, 10));
+                lBtn.setForeground(Main.activeLanguage == l ? Main.AppTheme.getAccent() : Color.LIGHT_GRAY);
+                lBtn.setContentAreaFilled(false);
+                lBtn.setBorderPainted(false);
+                lBtn.setFocusPainted(false);
+                lBtn.addActionListener(e -> {
+                    Main.activeLanguage = l;
+                    app.refreshAppLayout();
+                    app.navigateTo("Entrance");
+                });
+                langPanel.add(lBtn); // Fixed incorrect reference from 'btn' to 'lBtn'
+            }
+
+
+            gbc.gridy = 0; add(langPanel, gbc);
+
+
+            Main.LuminaLogoPanel prismLogo = new Main.LuminaLogoPanel();
+            gbc.gridy = 1; add(prismLogo, gbc);
+
+
+            JLabel logoText = new JLabel("LUMINA", JLabel.CENTER);
+            logoText.setFont(Main.AppTheme.getFont(Font.BOLD, 32));
+            logoText.setForeground(Main.AppTheme.getGold());
+            gbc.gridy = 2; add(logoText, gbc);
+
+
+            JLabel tagline = new JLabel(Main.Dictionary.get("entrance_tagline"), JLabel.CENTER);
+            tagline.setFont(Main.AppTheme.getFont(Font.PLAIN, 12));
+            tagline.setForeground(Color.LIGHT_GRAY);
+            gbc.gridy = 3; add(tagline, gbc);
+
+
+            Main.AnimatedProjectorCanvas animationPanel = new Main.AnimatedProjectorCanvas();
+            gbc.gridy = 4; add(animationPanel, gbc);
+
+
+            Main.ModernButton btnLogin = new Main.ModernButton(Main.Dictionary.get("btn_login"), Main.AppTheme.getAccent());
+            Main.ModernButton btnReg = new Main.ModernButton(Main.Dictionary.get("btn_register"), Main.AppTheme.getSurfaceGlass());
+
+
+            btnLogin.addActionListener(e -> app.navigateTo("Login"));
+            btnReg.addActionListener(e -> app.navigateTo("Register"));
+
+
+            gbc.gridy = 5; add(btnLogin, gbc);
+            gbc.gridy = 6; add(btnReg, gbc);
+
+
+            JPanel accessibilityTogglePanel = new JPanel();
+            accessibilityTogglePanel.setOpaque(false);
+            JCheckBox sensoryCheck = new JCheckBox(Main.Dictionary.get("lbl_sensory"));
+            sensoryCheck.setFont(Main.AppTheme.getFont(Font.PLAIN, 12));
+            sensoryCheck.setForeground(Color.LIGHT_GRAY);
+            sensoryCheck.setOpaque(false);
+            sensoryCheck.setSelected(Main.AppTheme.sensorySafeMode);
+            sensoryCheck.addActionListener(e -> {
+                Main.AppTheme.sensorySafeMode = sensoryCheck.isSelected();
+                app.refreshAppLayout();
+                app.navigateTo("Entrance");
+            });
+            accessibilityTogglePanel.add(sensoryCheck);
+            gbc.gridy = 7; add(accessibilityTogglePanel, gbc);
+        }
+    }
+
+
+    // 2. Register Screen
+    public static class RegisterScreen extends JPanel {
+        public RegisterScreen(Main app) {
+            setLayout(new GridBagLayout());
+            setOpaque(false);
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0; gbc.fill = GridBagConstraints.HORIZONTAL;
+            gbc.insets = new Insets(8, 20, 8, 20);
+
+
+            JLabel title = new JLabel("Create Lumina Account", JLabel.CENTER);
+            title.setFont(Main.AppTheme.getFont(Font.BOLD, 22));
+            title.setForeground(Main.AppTheme.getGold());
+
+
+            Main.MinimalistMovieFrame framePanel = new Main.MinimalistMovieFrame();
+
+
+            Main.GlassTextField fieldUser = new Main.GlassTextField(20);
+            JPasswordField fieldPass = new JPasswordField(20);
+            fieldPass.setOpaque(false);
+            fieldPass.setForeground(Color.WHITE);
+            fieldPass.setCaretColor(Main.AppTheme.getAccent());
+            fieldPass.setBorder(BorderFactory.createCompoundBorder(
+                    new Main.GlassTextField.RoundBorder(Main.AppTheme.getBorderGlass(), 12),
+                    new EmptyBorder(8, 12, 8, 12)
+            ));
+
+
+            JLabel passHelpLabel = new JLabel("<html><font size='2' color='gray'>Password requirements: Cap, lowercase, digit, and symbol</font></html>");
+
+
+            Main.ModernButton btnSubmit = new Main.ModernButton("INITIALIZE REGISTER", Main.AppTheme.getAccent());
+            Main.ModernButton btnBack = new Main.ModernButton("BACK", Main.AppTheme.getSurfaceGlass());
+
+
+            btnSubmit.addActionListener(e -> {
+                String u = fieldUser.getText().trim();
+                String p = new String(fieldPass.getPassword()).trim();
+                String passwordPattern = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*(),.?\":{}|<>]).+$";
+
+
+                if (u.isEmpty() || p.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Fields cannot remain empty.");
+                } else if (!p.matches(passwordPattern)) {
+                    JOptionPane.showMessageDialog(this, "Password security parameters not met. Check capitalization, numeric values and special character requirements.");
+                } else {
+                    Main.SessionManager.registeredUser = new Main.User(u, p);
+                    JOptionPane.showMessageDialog(this, "Security profile built. You can now verify on the next page.");
+                    app.navigateTo("Login");
+                }
+            });
+            btnBack.addActionListener(e -> app.navigateTo("Entrance"));
+
+
+            gbc.gridy = 0; add(title, gbc);
+            gbc.gridy = 1; add(framePanel, gbc);
+            gbc.gridy = 2; add(new JLabel("Set Username"), gbc);
+            gbc.gridy = 3; add(fieldUser, gbc);
+            gbc.gridy = 4; add(new JLabel("Set Complex Password"), gbc);
+            gbc.gridy = 5; add(fieldPass, gbc);
+            gbc.gridy = 6; add(passHelpLabel, gbc);
+            gbc.gridy = 7; add(Box.createRigidArea(new Dimension(0, 10)), gbc);
+            gbc.gridy = 8; add(btnSubmit, gbc);
+            gbc.gridy = 9; add(btnBack, gbc);
+        }
+    }
+
+
+    // 3. Login Screen
+    public static class LoginScreen extends JPanel {
+        public LoginScreen(Main app) {
+            setLayout(new GridBagLayout());
+            setOpaque(false);
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0; gbc.fill = GridBagConstraints.HORIZONTAL;
+            gbc.insets = new Insets(8, 20, 8, 20);
+
+
+            JLabel title = new JLabel("System Verification", JLabel.CENTER);
+            title.setFont(Main.AppTheme.getFont(Font.BOLD, 24));
+            title.setForeground(Main.AppTheme.getGold());
+
+
+            Main.MinimalistMovieFrame framePanel = new Main.MinimalistMovieFrame();
+
+
+            Main.GlassTextField fieldUser = new Main.GlassTextField(20);
+            JPasswordField fieldPass = new JPasswordField(20);
+            fieldPass.setOpaque(false);
+            fieldPass.setForeground(Color.WHITE);
+            fieldPass.setBorder(BorderFactory.createCompoundBorder(
+                    new Main.GlassTextField.RoundBorder(Main.AppTheme.getBorderGlass(), 12),
+                    new EmptyBorder(8, 12, 8, 12)
+            ));
+
+
+            Main.ModernButton btnSubmit = new Main.ModernButton("LOG IN", Main.AppTheme.getAccent());
+            Main.ModernButton btnDemoBypass = new Main.ModernButton("DEMO BYPASS (AUTO FILL)", Main.AppTheme.getSecondaryAccent());
+            Main.ModernButton btnBack = new Main.ModernButton("BACK", Main.AppTheme.getSurfaceGlass());
+
+
+            btnSubmit.addActionListener(e -> {
+                String u = fieldUser.getText().trim();
+                String p = new String(fieldPass.getPassword()).trim();
+
+
+                if (Main.SessionManager.registeredUser != null &&
+                        Main.SessionManager.registeredUser.username.equalsIgnoreCase(u) &&
+                        Main.SessionManager.registeredUser.password.equals(p)) {
+                    Main.SessionManager.currentUser = Main.SessionManager.registeredUser;
+                    app.navigateTo("Profile");
+                } else {
+                    JOptionPane.showMessageDialog(this, "Verification failure: Invalid system credentials.");
+                }
+            });
+
+
+            btnDemoBypass.addActionListener(e -> {
+                fieldUser.setText("lumina");
+                fieldPass.setText("Lumina2026!");
+                Main.SessionManager.currentUser = Main.SessionManager.registeredUser;
+                app.navigateTo("Profile");
+            });
+
+
+            btnBack.addActionListener(e -> app.navigateTo("Entrance"));
+
+
+            gbc.gridy = 0; add(title, gbc);
+            gbc.gridy = 1; add(framePanel, gbc);
+            gbc.gridy = 2; add(new JLabel("Username"), gbc);
+            gbc.gridy = 3; add(fieldUser, gbc);
+            gbc.gridy = 4; add(new JLabel("Password"), gbc);
+            gbc.gridy = 5; add(fieldPass, gbc);
+            gbc.gridy = 6; add(Box.createRigidArea(new Dimension(0, 10)), gbc);
+            gbc.gridy = 7; add(btnSubmit, gbc);
+            gbc.gridy = 8; add(btnDemoBypass, gbc);
+            gbc.gridy = 9; add(btnBack, gbc);
+        }
+    }
+
+
+    // 4. Mandatory User Profile Screen
+    public static class ProfileScreen extends JPanel {
+        public ProfileScreen(Main app) {
+            setLayout(new BorderLayout());
+            setOpaque(false);
+            setBorder(new EmptyBorder(30, 30, 30, 30));
+
+
+            JLabel title = new JLabel("Setup Identity & Territory", JLabel.CENTER);
+            title.setFont(Main.AppTheme.getFont(Font.BOLD, 22));
+            title.setForeground(Main.AppTheme.getGold());
+            add(title, BorderLayout.NORTH);
+
+
+            JPanel form = new JPanel();
+            form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+            form.setOpaque(false);
+
+
+            String[] labels = {"Full Name *", "Email Address *", "Active Phone (Digits Only) *"};
+            Main.GlassTextField[] fields = new Main.GlassTextField[3];
+
+
+            for (int i = 0; i < 3; i++) {
+                JLabel l = new JLabel(labels[i]);
+                l.setForeground(Color.LIGHT_GRAY);
+                l.setFont(Main.AppTheme.getFont(Font.PLAIN, 12));
+                fields[i] = new Main.GlassTextField(20);
+                fields[i].setMaximumSize(new Dimension(400, 38));
+
+
+                form.add(l);
+                form.add(Box.createRigidArea(new Dimension(0, 4)));
+                form.add(fields[i]);
+                form.add(Box.createRigidArea(new Dimension(0, 10)));
+            }
+
+
+            JLabel countryLabel = new JLabel("Target Region Selection *");
+            countryLabel.setForeground(Color.LIGHT_GRAY);
+            countryLabel.setFont(Main.AppTheme.getFont(Font.PLAIN, 12));
+            form.add(countryLabel);
+            form.add(Box.createRigidArea(new Dimension(0, 4)));
+
+
+            JPanel countrySelectorPanel = new JPanel(new GridLayout(1, 2, 10, 0));
+            countrySelectorPanel.setOpaque(false);
+            countrySelectorPanel.setMaximumSize(new Dimension(400, 50));
+
+
+            ButtonGroup countryGroup = new ButtonGroup();
+            JRadioButton optPH = new JRadioButton("Philippines (PHP ₱) ");
+            JRadioButton optTW = new JRadioButton("Taiwan (TWD NT$) ");
+
+
+            optPH.setSelected(true);
+            optPH.setOpaque(false); optPH.setForeground(Color.WHITE);
+            optTW.setOpaque(false); optTW.setForeground(Color.WHITE);
+
+
+            countryGroup.add(optPH);
+            countryGroup.add(optTW);
+
+
+            JPanel phRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+            phRow.setOpaque(false);
+            phRow.add(optPH); phRow.add(new Main.FlagCanvas(true));
+
+
+            JPanel twRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+            twRow.setOpaque(false);
+            twRow.add(optTW); twRow.add(new Main.FlagCanvas(false));
+
+
+            countrySelectorPanel.add(phRow);
+            countrySelectorPanel.add(twRow);
+            form.add(countrySelectorPanel);
+
+
+            addHierarchyListener(e -> {
+                if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && isShowing()) {
+                    if (Main.SessionManager.currentUser != null) {
+                        fields[0].setText(Main.SessionManager.currentUser.fullName);
+                        fields[1].setText(Main.SessionManager.currentUser.email);
+                        fields[2].setText(Main.SessionManager.currentUser.phone);
+                        if ("Taiwan".equalsIgnoreCase(Main.SessionManager.currentUser.country)) {
+                            optTW.setSelected(true);
+                        } else {
+                            optPH.setSelected(true);
+                        }
+                    }
+                }
+            });
+
+
+            add(form, BorderLayout.CENTER);
+
+
+            Main.ModernButton btnNext = new Main.ModernButton("COMMIT DETAILS", Main.AppTheme.getAccent());
+            btnNext.addActionListener(e -> {
+                String inputEmail = fields[1].getText().trim();
+                String inputPhone = fields[2].getText().trim();
+
+
+                String emailRegex = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}$";
+
+
+                boolean isPlaceholderEmail = inputEmail.equalsIgnoreCase("test@test.com") ||
+                        inputEmail.equalsIgnoreCase("example@example.com") ||
+                        inputEmail.equalsIgnoreCase("dummy@dummy.com") ||
+                        inputEmail.equalsIgnoreCase("email@email.com") ||
+                        inputEmail.equalsIgnoreCase("abc@abc.com") ||
+                        inputEmail.toLowerCase().contains("placeholder") ||
+                        inputEmail.toLowerCase().contains("invalid");
+
+
+                boolean isPlaceholderPhone = inputPhone.matches("0+") ||
+                        inputPhone.matches("1+") ||
+                        inputPhone.matches("2+") ||
+                        inputPhone.matches("3+") ||
+                        inputPhone.matches("4+") ||
+                        inputPhone.matches("5+") ||
+                        inputPhone.matches("6+") ||
+                        inputPhone.matches("7+") ||
+                        inputPhone.matches("8+") ||
+                        inputPhone.matches("9+") ||
+                        inputPhone.matches("1234567890+") ||
+                        inputPhone.matches("0123456789+") ||
+                        inputPhone.matches("9876543210+");
+
+
+                if (fields[0].getText().trim().isEmpty() || inputEmail.isEmpty() || inputPhone.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Complete all marked components.");
+                } else if (!inputEmail.matches(emailRegex) || isPlaceholderEmail) {
+                    JOptionPane.showMessageDialog(this, "Please enter a valid, active email address (e.g., name@domain.com). Placeholders are not allowed.");
+                } else if (!inputPhone.matches("\\d{7,15}") || isPlaceholderPhone) {
+                    JOptionPane.showMessageDialog(this, "Please provide a valid active phone configuration (digits only, 7 to 15 digits). Placeholders are not allowed.");
+                } else {
+                    if (Main.SessionManager.currentUser != null) {
+                        String oldEmail = Main.SessionManager.currentUser.email;
+
+
+                        Main.SessionManager.currentUser.fullName = fields[0].getText().trim();
+                        Main.SessionManager.currentUser.email = inputEmail;
+                        Main.SessionManager.currentUser.phone = inputPhone;
+                        Main.SessionManager.currentUser.country = optTW.isSelected() ? "Taiwan" : "Philippines";
+
+
+                        for (Main.Booking b : Main.SessionManager.pastBookings) {
+                            if (b.userEmail != null && b.userEmail.equalsIgnoreCase(oldEmail)) {
+                                b.userEmail = inputEmail;
+                            }
+                        }
+                    }
+                    app.navigateTo("Dashboard");
+                }
+            });
+            add(btnNext, BorderLayout.SOUTH);
+        }
+    }
+
+
+    // 5. Dashboard Screen
+    public static class DashboardScreen extends JPanel {
+        private final JTabbedPane timelineTabs = new JTabbedPane();
+
+
+        public DashboardScreen(Main app) {
+            setLayout(new BorderLayout());
+            setOpaque(false);
+            setBorder(new EmptyBorder(20, 15, 10, 15));
+
+
+            JPanel header = new JPanel(new BorderLayout());
+            header.setOpaque(false);
+            JLabel title = new JLabel("LUMINA SCHEDULES", JLabel.LEFT);
+            title.setFont(Main.AppTheme.getFont(Font.BOLD, 20));
+            title.setForeground(Main.AppTheme.getGold());
+
+
+            JToggleButton sensoryFilterBtn = new JToggleButton("Sensory: " + (Main.AppTheme.sensorySafeMode ? "SAFE" : "ALL"));
+            sensoryFilterBtn.setForeground(Color.WHITE);
+            sensoryFilterBtn.setBackground(Main.AppTheme.getAccent());
+            sensoryFilterBtn.setFocusPainted(false);
+            sensoryFilterBtn.addActionListener(e -> {
+                Main.AppTheme.sensorySafeMode = !Main.AppTheme.sensorySafeMode;
+                app.refreshAppLayout();
+                app.navigateTo("Dashboard");
+            });
+
+
+            header.add(title, BorderLayout.WEST);
+            header.add(sensoryFilterBtn, BorderLayout.EAST);
+            add(header, BorderLayout.NORTH);
+
+
+            timelineTabs.setOpaque(true);
+            timelineTabs.setFont(Main.AppTheme.getFont(Font.BOLD, 11));
+            timelineTabs.setBackground(new Color(11, 15, 26));
+            timelineTabs.setForeground(Color.WHITE);
+
+
+            JPanel currentEraPanel = generateMovieTimelinePanel(app, "2026");
+            JPanel futureEraPanel = generateMovieTimelinePanel(app, "Future");
+
+
+            timelineTabs.addTab("SUMMER SEASON 2026", currentEraPanel);
+            timelineTabs.addTab("PRE-ORDER SECURE (2027/2028)", futureEraPanel);
+
+
+            add(timelineTabs, BorderLayout.CENTER);
+            add(Main.createBottomNavigation(app), BorderLayout.SOUTH);
+        }
+
+
+        private JPanel generateMovieTimelinePanel(Main app, String targetEra) {
+            JPanel panel = new JPanel();
+            panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+            panel.setOpaque(true);
+            panel.setBackground(new Color(11, 15, 26));
+            panel.add(Box.createRigidArea(new Dimension(0, 10)));
+
+
+            String region = (Main.SessionManager.currentUser != null) ? Main.SessionManager.currentUser.country : "Philippines";
+
+
+            for (Main.Movie movie : Main.SessionManager.movieLibrary) {
+                if (!movie.releaseEra.equals(targetEra)) continue;
+                if (Main.AppTheme.sensorySafeMode && !movie.isSensorySafe) continue;
+
+
+                Main.GlassPanel card = new Main.GlassPanel() {
+                    @Override
+                    protected void paintComponent(Graphics g) {
+                        super.paintComponent(g);
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        g2.setColor(new Color(20, 26, 41));
+                        g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 24, 24);
+                        g2.setColor(Main.AppTheme.getBorderGlass());
+                        g2.setStroke(new BasicStroke(1.2f));
+                        g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 24, 24);
+                        g2.dispose();
+                    }
+                };
+                card.setLayout(new BorderLayout(15, 0));
+                card.setPreferredSize(new Dimension(420, 115));
+                card.setMaximumSize(new Dimension(440, 115));
+
+
+                Main.PosterCanvas poster = new Main.PosterCanvas(movie.title);
+                card.add(poster, BorderLayout.WEST);
+
+
+                JPanel infoText = new JPanel();
+                infoText.setLayout(new BoxLayout(infoText, BoxLayout.Y_AXIS));
+                infoText.setOpaque(false);
+
+
+                JLabel tLabel = new JLabel(movie.title);
+                tLabel.setFont(Main.AppTheme.getFont(Font.BOLD, 14));
+                tLabel.setForeground(Main.AppTheme.getGold());
+
+
+                double localizedPrice = movie.getPriceInCurrency(region);
+                String currencySymbol = movie.getCurrencySymbol(region);
+
+
+                JLabel metaLabel = new JLabel("Release: " + movie.exactDate + " | Price: " + currencySymbol + String.format("%.2f", localizedPrice));
+                metaLabel.setFont(Main.AppTheme.getFont(Font.BOLD, 11));
+                metaLabel.setForeground(Main.AppTheme.getSecondaryAccent());
+
+
+                JLabel details = new JLabel("Sensory: " + movie.sensoryProfile);
+                details.setFont(Main.AppTheme.getFont(Font.PLAIN, 11));
+                details.setForeground(new Color(220, 230, 242));
+
+
+                infoText.add(tLabel);
+                infoText.add(Box.createRigidArea(new Dimension(0, 2)));
+                infoText.add(metaLabel);
+                infoText.add(Box.createRigidArea(new Dimension(0, 4)));
+                infoText.add(details);
+
+
+                Main.ModernButton btnSelect = new Main.ModernButton("RESERVE", Main.AppTheme.getAccent());
+                btnSelect.setPreferredSize(new Dimension(85, 32));
+                btnSelect.addActionListener(e -> {
+                    Main.SessionManager.selectedMovie = movie;
+                    Main.SessionManager.currentBooking = new Main.Booking();
+                    Main.SessionManager.currentBooking.movie = movie;
+                    app.navigateTo("BookingSelection");
+                });
+
+
+                card.add(infoText, BorderLayout.CENTER);
+                card.add(btnSelect, BorderLayout.EAST);
+
+
+                panel.add(card);
+                panel.add(Box.createRigidArea(new Dimension(0, 10)));
+            }
+
+
+            JScrollPane scroll = new JScrollPane(panel);
+            scroll.setOpaque(true);
+            scroll.setBackground(new Color(11, 15, 26));
+            scroll.getViewport().setOpaque(true);
+            scroll.getViewport().setBackground(new Color(11, 15, 26));
+            scroll.setBorder(null);
+
+
+            JPanel wrap = new JPanel(new BorderLayout());
+            wrap.setOpaque(true);
+            wrap.setBackground(new Color(11, 15, 26));
+            wrap.add(scroll, BorderLayout.CENTER);
+            return wrap;
+        }
+    }
+
+
+    // 6. Director Bios & Library Screen (Animated & Responsive Placeholders)
+    public static class DirectorBiosScreen extends JPanel {
+        public DirectorBiosScreen(Main app) {
+            setLayout(new BorderLayout());
+            setOpaque(false);
+            setBorder(new EmptyBorder(25, 20, 10, 20));
+
+
+            JLabel title = new JLabel("Master Director Archives", JLabel.CENTER);
+            title.setFont(Main.AppTheme.getFont(Font.BOLD, 22));
+            title.setForeground(Main.AppTheme.getGold());
+            title.setAlignmentX(Component.CENTER_ALIGNMENT);
+            add(title, BorderLayout.NORTH);
+
+
+            JPanel container = new JPanel();
+            container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
+            container.setOpaque(false);
+            container.add(Box.createRigidArea(new Dimension(0, 15)));
+
+
+            Main.AmbientCinemaReelCanvas topAnimation = new Main.AmbientCinemaReelCanvas();
+            topAnimation.setAlignmentX(Component.CENTER_ALIGNMENT);
+            container.add(topAnimation);
+            container.add(Box.createRigidArea(new Dimension(0, 15)));
+
+
+            String[][] worksArray = {
+                    {"Interstellar", "Dunkirk", "Inception", "Dark Knight"},
+                    {"Jaguar", "Manila", "Bayan Ko"},
+                    {"Life of Pi", "Crouching Tiger", "Brokeback"}
+            };
+
+
+            String[][] sensoryNotesArray = {
+                    {
+                            "Interstellar: Features a rich cosmic soundscape with deep organ rumbles and wide dynamic contrast. Calming space segments exist.",
+                            "Dunkirk: Extremely high acoustic tension, ticking stopwatch motif. Standard volume levels may be overwhelming.",
+                            "Inception: Powerful brass layers, heavy gravity bending visual elements. Keep room acoustics soft.",
+                            "Dark Knight: Muted high frequencies with deep orchestral shadows. Ideal for lower visual contrast settings."
+                    },
+                    {
+                            "Jaguar: Classic gritty urban frequencies, sharp social dialogue. Minimal modern sensory triggers.",
+                            "Manila in the Claws of Light: Warm street-level lighting, rich historical audio frequencies. Highly localized.",
+                            "Bayan Ko: Intense socio-political narrative. Muted acoustic sweeps with steady frames."
+                    },
+                    {
+                            "Life of Pi: Highly visual bioluminescent ocean wave sequences. Features calming water environments.",
+                            "Crouching Tiger, Hidden Dragon: Flowing cinematic woodwind instrumentation, natural outdoor landscapes, and elegant martial arts choreographies.",
+                            "Brokeback Mountain: Peaceful natural green mountain environments, quiet spaces, acoustic guitar tracks."
+                    }
+            };
+
+
+            for (int i = 0; i < Main.DirectorArchive.DIRECTORS.length; i++) {
+                Main.GlassPanel card = new Main.GlassPanel();
+                card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+                card.setMaximumSize(new Dimension(440, 710));
+                card.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+                JLabel dNameLabel = new JLabel("<html><center><font color='#00E5FF' size='5'><b>" + (i + 1) + ". " + Main.DirectorArchive.DIRECTORS[i] + "</b></font></center></html>");
+                dNameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+                card.add(Box.createRigidArea(new Dimension(0, 10)));
+                card.add(dNameLabel);
+                card.add(Box.createRigidArea(new Dimension(0, 12)));
+
+
+                // Step 2: Director's Image portrait placeholder loaded dynamically from directory
+                String dirNameClean = Main.DirectorArchive.DIRECTORS[i].toLowerCase().replaceAll(" ", "_");
+                String dirImagePath = "images/" + dirNameClean + ".jpg";
+                ImageIcon directorIcon = Main.getScaledImage(dirImagePath, 130, 160);
+
+
+                final int indexNum = i;
+                JPanel directorPortraitBox = new JPanel() {
+                    @Override
+                    protected void paintComponent(Graphics g) {
+                        super.paintComponent(g);
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+                        if (directorIcon != null) {
+                            g2.drawImage(directorIcon.getImage(), 0, 0, this);
+                            g2.setColor(Main.AppTheme.getSecondaryAccent());
+                            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 16, 16);
+                        } else {
+                            g2.setColor(new Color(20, 26, 41));
+                            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
+
+
+                            float[] dash = {6.0f, 4.0f};
+                            g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, dash, 0.0f));
+                            g2.setColor(Main.AppTheme.getSecondaryAccent());
+                            g2.drawRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 16, 16);
+                        }
+                        g2.dispose();
+                    }
+                };
+                directorPortraitBox.setOpaque(false);
+                directorPortraitBox.setPreferredSize(new Dimension(130, 160));
+                directorPortraitBox.setMaximumSize(new Dimension(130, 160));
+                directorPortraitBox.setLayout(new GridBagLayout());
+                directorPortraitBox.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+                // Omit displaying the instructional label overlay when director image is loaded successfully
+                if (directorIcon == null) {
+                    JLabel imageInstruction = new JLabel("<html><center><font color='#94A3B8' size='2'>[ Director Image " + (indexNum+1) + "<br>Portrait Space ]</font></center></html>", JLabel.CENTER);
+                    directorPortraitBox.add(imageInstruction);
+                }
+
+
+                card.add(directorPortraitBox);
+                card.add(Box.createRigidArea(new Dimension(0, 12)));
+
+
+                JPanel chipsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 5));
+                chipsPanel.setOpaque(false);
+                chipsPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+                chipsPanel.setMaximumSize(new Dimension(400, 45));
+
+
+                for (int w = 0; w < worksArray[i].length; w++) {
+                    final String filmName = worksArray[i][w];
+                    final String sensoryNote = sensoryNotesArray[i][w];
+
+
+                    JButton filmChip = new JButton(filmName);
+                    filmChip.setFont(new Font("SansSerif", Font.BOLD, 10));
+                    filmChip.setForeground(Color.WHITE);
+                    filmChip.setBackground(new Color(255, 255, 255, 20));
+                    filmChip.setBorder(BorderFactory.createCompoundBorder(
+                            BorderFactory.createLineBorder(new Color(255, 255, 255, 60), 1, true),
+                            BorderFactory.createEmptyBorder(2, 6, 2, 6)
+                    ));
+                    filmChip.setFocusPainted(false);
+                    filmChip.setContentAreaFilled(false);
+
+
+                    filmChip.addMouseListener(new MouseAdapter() {
+                        @Override
+                        public void mouseEntered(MouseEvent e) {
+                            filmChip.setBorder(BorderFactory.createCompoundBorder(
+                                    BorderFactory.createLineBorder(Main.AppTheme.getAccent(), 1, true),
+                                    BorderFactory.createEmptyBorder(2, 6, 2, 6)
+                            ));
+                        }
+                        @Override
+                        public void mouseExited(MouseEvent e) {
+                            filmChip.setBorder(BorderFactory.createCompoundBorder(
+                                    BorderFactory.createLineBorder(new Color(255, 255, 255, 60), 1, true),
+                                    BorderFactory.createEmptyBorder(2, 6, 2, 6)
+                            ));
+                        }
+                    });
+
+
+                    filmChip.addActionListener(e -> {
+                        Frame parentFrame = (Frame) SwingUtilities.getWindowAncestor(this);
+                        Main.PosterPreviewDialog posterDlg = new Main.PosterPreviewDialog(parentFrame, filmName, sensoryNote);
+                        posterDlg.setVisible(true);
+                    });
+                    chipsPanel.add(filmChip);
+                }
+                card.add(chipsPanel);
+                card.add(Box.createRigidArea(new Dimension(0, 10)));
+
+
+                JLabel bioLabel = new JLabel("<html><div style='text-align: center; color:#FFFFFF; line-height:1.5; padding: 0 15px 0 15px;'>"
+                        + Main.DirectorArchive.BIOS[i] + "</div></html>");
+                bioLabel.setFont(Main.AppTheme.getFont(Font.PLAIN, 12));
+                bioLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+                card.add(bioLabel);
+                card.add(Box.createRigidArea(new Dimension(0, 15)));
+
+
+                JLabel galleryHeader = new JLabel("MASTERPIECE CO-ORDINATES", JLabel.CENTER);
+                galleryHeader.setFont(Main.AppTheme.getFont(Font.BOLD, 10));
+                galleryHeader.setForeground(Main.AppTheme.getGold());
+                galleryHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
+                card.add(galleryHeader);
+                card.add(Box.createRigidArea(new Dimension(0, 6)));
+
+
+                JPanel posterGallery = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
+                posterGallery.setOpaque(false);
+                posterGallery.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+                for (int p = 0; p < worksArray[i].length; p++) {
+                    final String filmTitle = worksArray[i][p];
+
+
+                    String masterpieceClean = filmTitle.toLowerCase()
+                            .replaceAll(":", "")
+                            .replaceAll("&", "and")
+                            .replaceAll("[^a-z0-9]", "_")
+                            .replaceAll("__+", "_");
+                    String masterpiecePath = "images/" + masterpieceClean + ".jpg";
+                    ImageIcon masterpieceIcon = Main.getScaledImage(masterpiecePath, 75, 110);
+
+
+                    JPanel singlePosterSlot = new JPanel() {
+                        @Override
+                        protected void paintComponent(Graphics g) {
+                            super.paintComponent(g);
+                            Graphics2D g2 = (Graphics2D) g.create();
+                            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+                            if (masterpieceIcon != null) {
+                                g2.drawImage(masterpieceIcon.getImage(), 0, 0, this);
+                                g2.setColor(Main.AppTheme.getBorderGlass());
+                                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+                            } else {
+                                g2.setColor(new Color(30, 41, 59));
+                                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                                float[] dash = {4.0f, 3.0f};
+                                g2.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, dash, 0.0f));
+                                g2.setColor(Main.AppTheme.getBorderGlass());
+                                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+                            }
+                            g2.dispose();
+                        }
+                    };
+                    singlePosterSlot.setOpaque(false);
+                    singlePosterSlot.setPreferredSize(new Dimension(75, 110));
+                    singlePosterSlot.setLayout(new GridBagLayout());
+
+
+                    // Omit displaying the instructional poster label when real poster image is loaded successfully
+                    if (masterpieceIcon == null) {
+                        JLabel pLabel = new JLabel("<html><center><font size='1' color='#94A3B8'>" + filmTitle + "<br>[Poster]</font></center></html>", JLabel.CENTER);
+                        singlePosterSlot.add(pLabel);
+                    }
+                    posterGallery.add(singlePosterSlot);
+                }
+                card.add(posterGallery);
+                card.add(Box.createRigidArea(new Dimension(0, 12)));
+
+
+                container.add(card);
+                container.add(Box.createRigidArea(new Dimension(0, 15)));
+            }
+
+
+            Main.AmbientCinemaReelCanvas bottomAnimation = new Main.AmbientCinemaReelCanvas();
+            bottomAnimation.setAlignmentX(Component.CENTER_ALIGNMENT);
+            container.add(bottomAnimation);
+            container.add(Box.createRigidArea(new Dimension(0, 15)));
+
+
+            JScrollPane scroll = new JScrollPane(container);
+            scroll.setOpaque(false);
+            scroll.getViewport().setOpaque(false);
+            scroll.setBorder(null);
+            add(scroll, BorderLayout.CENTER);
+
+
+            add(Main.createBottomNavigation(app), BorderLayout.SOUTH);
+        }
+    }
+
+
+    // 7. About Lumina Screen (Clean & Uniform Centered Layout)
+    public static class AboutLuminaScreen extends JPanel {
+        public AboutLuminaScreen(Main app) {
+            setLayout(new BorderLayout());
+            setOpaque(false);
+            setBorder(new EmptyBorder(20, 20, 10, 20));
+
+
+            JLabel title = new JLabel("About Lumina Theatres", JLabel.CENTER);
+            title.setFont(Main.AppTheme.getFont(Font.BOLD, 22));
+            title.setForeground(Main.AppTheme.getGold());
+            add(title, BorderLayout.NORTH);
+
+
+            JPanel centerPanel = new JPanel();
+            centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+            centerPanel.setOpaque(false);
+
+
+            centerPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+
+
+            // Box 1: What is Lumina
+            Main.PulsingGlassPanel boxLumina = new Main.PulsingGlassPanel();
+            boxLumina.setLayout(new BoxLayout(boxLumina, BoxLayout.Y_AXIS));
+            boxLumina.setAlignmentX(Component.CENTER_ALIGNMENT);
+            boxLumina.add(createSectionHeader("What is Lumina?"));
+            boxLumina.add(createSectionBody("Lumina is a pioneering, neurodivergent-friendly cinematic ecosystem built to break the sensory barriers of traditional entertainment spaces. Our facilities act as tailored sensory sanctuaries, neutralizing potential triggers like high-decibel auditory bursts and sudden flashing sequences through real-time ambient manipulation and specialized structural isolation. By harmonizing spatial acoustic architecture and digital light controls, Lumina guarantees that cinema is completely inclusive, offering those on the autism spectrum, ADHD, and hyperacusis a stress-free environment to enjoy visual storytelling. We integrate customizable physical elements such as weighted blankets, dimmable personal task lighting, and tactile decompression tools at every seating row. The environment is continuously monitored by adaptive light sensors that dynamically smooth out harsh cinematic transitions on the screen. Quiet decompression zones are strategically positioned just outside the main viewing halls to assist guests who may require a brief break from stimulation. Staff members are comprehensively trained in neurodiverse support protocols to provide compassionate assistance without judgment. Ultimately, Lumina transforms the simple act of watching a film into a highly supportive and deeply relaxing communal milestone."));
+            centerPanel.add(boxLumina);
+            centerPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+
+
+            // Box 2: Inspiration
+            Main.PulsingGlassPanel boxInspiration = new Main.PulsingGlassPanel();
+            boxInspiration.setLayout(new BoxLayout(boxInspiration, BoxLayout.Y_AXIS));
+            boxInspiration.setAlignmentX(Component.CENTER_ALIGNMENT);
+            boxInspiration.add(createSectionHeader("The Inspiration"));
+            boxInspiration.add(createSectionBody("The spark for Lumina was ignited by deep-rooted statistical realities of sensory exclusion. Globally, approximately 1 in 36 children are diagnosed on the autism spectrum. In the Philippines, over 1.2 million individuals live with sensory processing differences, leaving countless families isolated from public recreational activities due to a severe shortage of accommodations. In Taiwan, despite high healthcare awareness, bustling urban venues remain high-trigger environments with loud advertising decibels. This stark lack of public compassion served as our core motivation to construct a space where families can gather in comfort, dignity, and absolute peace of mind. Many neurodivergent children are forced to stay home because standard theater crowds do not understand behavioral expressions of sensory overload. Families often express a profound sense of grief over missing out on common childhood memories like weekend movie outings. We set out to change this paradigm by shifting the responsibility of accommodation from the individual to the venue. By studying the demographic maps of both Manila and Taipei, we identified critical gaps in inclusive structural infrastructure. Our vision is to serve as a scalable, living blueprint for public venues worldwide to follow. We believe that true accessibility is not merely a legal checkbox but a fundamental human right."));
+            centerPanel.add(boxInspiration);
+            centerPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+
+
+            // Box 3: Creator
+            Main.PulsingGlassPanel boxCreator = new Main.PulsingGlassPanel();
+            boxCreator.setLayout(new BoxLayout(boxCreator, BoxLayout.Y_AXIS));
+            boxCreator.setAlignmentX(Component.CENTER_ALIGNMENT);
+            boxCreator.add(createSectionHeader("The Creator"));
+            boxCreator.add(createSectionBody("Lumina is envisioned and created by Gong Ruiwen. Drawing from an extensive broadcasting background in the Philippines and a deep personal love for film and art, Gong Ruiwen recognized that the magic of the big screen belongs to everyone, regardless of cognitive differences. Melding technical communication training with artistic empathy, the blueprint of Lumina was engineered to transition neurodivergent spaces from temporary retrofits into permanent, high-fidelity architectural installations. Gong Ruiwen believes cinema has the unparalleled power to heal and unite—a dream realized directly in Lumina's design. The creator spent years collaborating with developmental pediatricians and environmental psychologists to refine the spatial acoustics of the theater. This extensive interdisciplinary research ensured that every design choice, from the wall fabrics to the seat angles, is grounded in science. Gong Ruiwen personally oversaw the development of the programmatic media engines that limit unsafe audio spikes. By hosting active community workshops with advocacy groups, the design was continuously refined to meet real-world needs. Gong’s ultimate goal is to inspire commercial cinema chains to adopt inclusive standards on a national level. This project stands as a heartfelt dedication to bridging the gap between cutting-edge technology and human-centric design."));
+            centerPanel.add(boxCreator);
+            centerPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+
+
+            // Box 4: Solving Real Problems (Properly Aligned and Centered)
+            Main.PulsingGlassPanel boxProblems = new Main.PulsingGlassPanel();
+            boxProblems.setLayout(new BoxLayout(boxProblems, BoxLayout.Y_AXIS));
+            boxProblems.setAlignmentX(Component.CENTER_ALIGNMENT);
+            boxProblems.add(createSectionHeader("Solving Real Problems"));
+            boxProblems.add(createSectionBody("Traditional theaters blast audio at averages exceeding 95 decibels, causing profound discomfort for sensory-sensitive individuals. Lumina systematically solves this by capping system audio at a comfortable 75 decibels, integrating active digital high-frequency limiters, and deploying soft acoustic absorption sheets. Our unique seat selector displays dedicated 'Sensory Optimal' layouts located in lower sound fields close to emergency exits. Furthermore, by organizing our releases across seasonal and pre-order schedules years in advance, we allow families to systematically structure, organize, and plan their therapeutic leisure outings with full security. Standard concession stands are also a frequent source of anxiety due to long, chaotic lines and sudden loud sounds from popping machines. Lumina addresses this by introducing a streamlined, pre-order concession system where items are brought directly to designated pickup stations. Our foods are prepared using non-disruptive, quiet packaging materials that eliminate the crinkling noise of standard plastic wrappers. We also offer specialized allergen-friendly and texture-sensitive snack menus to accommodate restricted dietary needs. The ticketing interface itself features high-contrast layouts and dyslexia-friendly font overrides to remove cognitive friction during booking. These meticulous layers of design work in unison to eliminate stress from the moment a family enters our hub."));
+            centerPanel.add(boxProblems);
+            centerPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+
+
+            JScrollPane scroll = new JScrollPane(centerPanel);
+            scroll.setOpaque(false);
+            scroll.getViewport().setOpaque(false);
+            scroll.setBorder(null);
+            add(scroll, BorderLayout.CENTER);
+
+
+            add(Main.createBottomNavigation(app), BorderLayout.SOUTH);
+        }
+
+
+        private JLabel createSectionHeader(String heading) {
+            JLabel lbl = new JLabel(heading, JLabel.CENTER);
+            lbl.setFont(Main.AppTheme.getFont(Font.BOLD, 15));
+            lbl.setForeground(Main.AppTheme.getSecondaryAccent());
+            lbl.setBorder(new EmptyBorder(12, 12, 4, 12));
+            lbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+            return lbl;
+        }
+
+
+        private JTextArea createSectionBody(String text) {
+            JTextArea area = new JTextArea(text);
+            area.setFont(Main.AppTheme.getFont(Font.PLAIN, 12));
+            area.setForeground(Color.WHITE);
+            area.setLineWrap(true);
+            area.setWrapStyleWord(true);
+            area.setEditable(false);
+            area.setOpaque(false);
+            area.setBorder(new EmptyBorder(4, 12, 12, 12));
+            area.setAlignmentX(Component.CENTER_ALIGNMENT);
+            return area;
+        }
+    }
+
+
+    // 8. User Profile View Screen
+    public static class UserProfileScreen extends JPanel {
+        private final JLabel uName = new JLabel("", JLabel.CENTER);
+        private final JLabel uEmail = new JLabel("", JLabel.CENTER);
+        private final JLabel uPhone = new JLabel("", JLabel.CENTER);
+        private final JLabel uRegion = new JLabel("", JLabel.CENTER);
+        private final JPanel listPanel = new JPanel();
+        private final JCheckBox checkDyslexia = new JCheckBox("Dyslexia Friendly Layout Fonts");
+        private final JCheckBox checkHighContrast = new JCheckBox("Muted Atmospheric Visual Contrast");
+
+
+        public UserProfileScreen(Main app) {
+            setLayout(new BorderLayout());
+            setOpaque(false);
+            setBorder(new EmptyBorder(20, 20, 10, 20));
+
+
+            JLabel title = new JLabel("Lumina Personal Profile", JLabel.CENTER);
+            title.setFont(Main.AppTheme.getFont(Font.BOLD, 22));
+            title.setForeground(Main.AppTheme.getGold());
+            title.setAlignmentX(Component.CENTER_ALIGNMENT);
+            add(title, BorderLayout.NORTH);
+
+
+            JPanel centerPanel = new JPanel();
+            centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+            centerPanel.setOpaque(false);
+
+
+            Main.GlassPanel userCard = new Main.GlassPanel();
+            userCard.setLayout(new BoxLayout(userCard, BoxLayout.Y_AXIS));
+            userCard.setMaximumSize(new Dimension(440, 150));
+            userCard.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+            uName.setFont(Main.AppTheme.getFont(Font.BOLD, 15));
+            uName.setForeground(Main.AppTheme.getSecondaryAccent());
+            uEmail.setForeground(Color.WHITE);
+            uPhone.setForeground(Color.WHITE);
+            uRegion.setForeground(Color.WHITE);
+
+
+            uName.setAlignmentX(Component.CENTER_ALIGNMENT);
+            uEmail.setAlignmentX(Component.CENTER_ALIGNMENT);
+            uPhone.setAlignmentX(Component.CENTER_ALIGNMENT);
+            uRegion.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+            userCard.add(Box.createRigidArea(new Dimension(0, 8)));
+            userCard.add(uName);
+            userCard.add(Box.createRigidArea(new Dimension(0, 6)));
+            userCard.add(uEmail);
+            userCard.add(Box.createRigidArea(new Dimension(0, 4)));
+            userCard.add(uPhone);
+            userCard.add(Box.createRigidArea(new Dimension(0, 4)));
+            userCard.add(uRegion);
+            userCard.add(Box.createRigidArea(new Dimension(0, 8)));
+
+
+            centerPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+            centerPanel.add(userCard);
+            centerPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+
+
+            Main.GlassPanel settingsCard = new Main.GlassPanel();
+            settingsCard.setLayout(new BoxLayout(settingsCard, BoxLayout.Y_AXIS));
+            settingsCard.setMaximumSize(new Dimension(440, 140));
+            settingsCard.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+            JLabel settingsHeader = new JLabel("System Accommodation Toggles");
+            settingsHeader.setFont(Main.AppTheme.getFont(Font.BOLD, 14));
+            settingsHeader.setForeground(Main.AppTheme.getSecondaryAccent());
+            settingsHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+            checkDyslexia.setOpaque(false);
+            checkDyslexia.setForeground(Color.WHITE);
+            checkDyslexia.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+            checkHighContrast.setOpaque(false);
+            checkHighContrast.setForeground(Color.WHITE);
+            checkHighContrast.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+            checkDyslexia.addActionListener(e -> {
+                Main.AppTheme.dyslexiaFontMode = checkDyslexia.isSelected();
+                app.refreshAppLayout();
+                app.navigateTo("UserProfile");
+            });
+
+
+            checkHighContrast.addActionListener(e -> {
+                Main.AppTheme.sensorySafeMode = checkHighContrast.isSelected();
+                app.refreshAppLayout();
+                app.navigateTo("UserProfile");
+            });
+
+
+            settingsCard.add(settingsHeader);
+            settingsCard.add(Box.createRigidArea(new Dimension(0, 8)));
+            settingsCard.add(checkDyslexia);
+            settingsCard.add(Box.createRigidArea(new Dimension(0, 4)));
+            settingsCard.add(checkHighContrast);
+
+
+            centerPanel.add(settingsCard);
+            centerPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+
+
+            JLabel histHeader = new JLabel("Recent Booking Log");
+            histHeader.setFont(Main.AppTheme.getFont(Font.BOLD, 15));
+            histHeader.setForeground(Main.AppTheme.getGold());
+            histHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
+            centerPanel.add(histHeader);
+            centerPanel.add(Box.createRigidArea(new Dimension(0, 8)));
+
+
+            listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
+            listPanel.setOpaque(false);
+            listPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            centerPanel.add(listPanel);
+
+
+            JScrollPane scroll = new JScrollPane(centerPanel);
+            scroll.setOpaque(false);
+            scroll.getViewport().setOpaque(false);
+            scroll.setBorder(null);
+            add(scroll, BorderLayout.CENTER);
+
+
+            add(Main.createBottomNavigation(app), BorderLayout.SOUTH);
+
+
+            addHierarchyListener(e -> {
+                if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && isShowing()) {
+                    updateProfileData();
+                }
+            });
+        }
+
+
+        private void updateProfileData() {
+            Main.User u = Main.SessionManager.currentUser;
+            if (u == null) return;
+
+
+            uName.setText("✦ Name: " + u.fullName);
+            uEmail.setText("✉ Email: " + u.email);
+            uPhone.setText("☎ Phone: " + u.phone);
+            uRegion.setText("📍 Region: " + u.country);
+
+
+            checkDyslexia.setSelected(Main.AppTheme.dyslexiaFontMode);
+            checkHighContrast.setSelected(Main.AppTheme.sensorySafeMode);
+
+
+            listPanel.removeAll();
+            for (Main.Booking b : Main.SessionManager.pastBookings) {
+                if (b.userEmail == null || !b.userEmail.equalsIgnoreCase(u.email)) {
+                    continue;
+                }
+
+
+                Main.GlassPanel row = new Main.GlassPanel();
+                row.setLayout(new BorderLayout());
+                row.setMaximumSize(new Dimension(440, 105));
+                row.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+
+                JPanel leftInfo = new JPanel();
+                leftInfo.setLayout(new BoxLayout(leftInfo, BoxLayout.Y_AXIS));
+                leftInfo.setOpaque(false);
+
+
+                JLabel mTitle = new JLabel(b.movie.title);
+                mTitle.setFont(Main.AppTheme.getFont(Font.BOLD, 12));
+                mTitle.setForeground(Color.WHITE);
+
+
+                JLabel mSchedule = new JLabel(b.selectedVenue + " | " + b.selectedDate);
+                mSchedule.setFont(Main.AppTheme.getFont(Font.PLAIN, 10));
+                mSchedule.setForeground(Color.LIGHT_GRAY);
+
+
+                JLabel mSeats = new JLabel("Seats: " + b.selectedSeats.toString() + " | Code: " + b.referenceCode);
+                mSeats.setFont(Main.AppTheme.getFont(Font.ITALIC, 10));
+                mSeats.setForeground(Main.AppTheme.getSecondaryAccent());
+
+
+                leftInfo.add(mTitle);
+                leftInfo.add(mSchedule);
+                leftInfo.add(mSeats);
+
+
+                Main.VisualMiniSeatMap visualSeats = new Main.VisualMiniSeatMap(b.selectedSeats);
+                visualSeats.setPreferredSize(new Dimension(80, 60));
+
+
+                JPanel centerGroup = new JPanel(new BorderLayout());
+                centerGroup.setOpaque(false);
+                centerGroup.add(leftInfo, BorderLayout.CENTER);
+                centerGroup.add(visualSeats, BorderLayout.EAST);
+
+
+                String currencySymbol = b.movie.getCurrencySymbol(u.country);
+                JLabel priceLabel = new JLabel(currencySymbol + String.format("%.2f", b.calculatedPrice));
+                priceLabel.setFont(Main.AppTheme.getFont(Font.BOLD, 14));
+                priceLabel.setForeground(Main.AppTheme.getGold());
+                priceLabel.setBorder(new EmptyBorder(0, 10, 0, 0));
+
+
+                row.add(centerGroup, BorderLayout.CENTER);
+                row.add(priceLabel, BorderLayout.EAST);
+
+
+                listPanel.add(row);
+                listPanel.add(Box.createRigidArea(new Dimension(0, 8)));
+            }
+            listPanel.revalidate();
+            listPanel.repaint();
+        }
+    }
+
+
+    // 9. Booking Configuration Panel
+    public static class TierBookingScreen extends JPanel {
+        private JComboBox<String> venueBox;
+        private JComboBox<String> filmBox;
+        private JComboBox<String> dateBox;
+        private JComboBox<String> timeBox;
+        private JCheckBox checkPopcorn;
+        private JCheckBox checkTea;
+        private JCheckBox checkBites;
+
+
+        public TierBookingScreen(Main app) {
+            setLayout(new BorderLayout());
+            setOpaque(false);
+            setBorder(new EmptyBorder(20, 20, 20, 20));
+
+
+            JLabel header = new JLabel("Reservation Configuration", JLabel.CENTER);
+            header.setFont(Main.AppTheme.getFont(Font.BOLD, 22));
+            header.setForeground(Main.AppTheme.getGold());
+            add(header, BorderLayout.NORTH);
+
+
+            JPanel mainForm = new JPanel();
+            mainForm.setLayout(new BoxLayout(mainForm, BoxLayout.Y_AXIS));
+            mainForm.setOpaque(false);
+
+
+            String region = (Main.SessionManager.currentUser != null) ? Main.SessionManager.currentUser.country : "Philippines";
+
+
+            JLabel venueLbl = new JLabel("Venue Selection");
+            venueLbl.setForeground(Main.AppTheme.getSecondaryAccent());
+            venueLbl.setFont(Main.AppTheme.getFont(Font.BOLD, 12));
+            mainForm.add(venueLbl);
+
+
+            String[] phVenues = {"SM Cinema Manila", "Ayala Malls Cinema Cebu", "BGC High Street Central"};
+            String[] twVenues = {"Vie Show Taipei Qsquare", "Ambassador Theatre Kaohsiung", "Miramar Cinema Taichung"};
+            String[] finalVenues = "Taiwan".equalsIgnoreCase(region) ? twVenues : phVenues;
+
+
+            venueBox = new JComboBox<>(finalVenues);
+            venueBox.setBackground(new Color(30, 41, 59));
+            venueBox.setForeground(Color.WHITE);
+            venueBox.setMaximumSize(new Dimension(440, 35));
+            mainForm.add(venueBox);
+            mainForm.add(Box.createRigidArea(new Dimension(0, 10)));
+
+
+            JLabel filmLbl = new JLabel("Available Films");
+            filmLbl.setForeground(Main.AppTheme.getSecondaryAccent());
+            filmLbl.setFont(Main.AppTheme.getFont(Font.BOLD, 12));
+            mainForm.add(filmLbl);
+
+
+            filmBox = new JComboBox<>();
+            filmBox.setBackground(new Color(30, 41, 59));
+            filmBox.setForeground(Color.WHITE);
+            filmBox.setMaximumSize(new Dimension(440, 35));
+            mainForm.add(filmBox);
+            mainForm.add(Box.createRigidArea(new Dimension(0, 10)));
+
+
+            JPanel dateTimeRow = new JPanel(new GridLayout(1, 2, 10, 0));
+            dateTimeRow.setOpaque(false);
+
+
+            JPanel dateCol = new JPanel(new BorderLayout()); dateCol.setOpaque(false);
+            JLabel dateLbl = new JLabel("Select Date"); dateLbl.setForeground(Color.LIGHT_GRAY);
+            dateBox = new JComboBox<>();
+            dateBox.setBackground(new Color(30, 41, 59)); dateBox.setForeground(Color.WHITE);
+            dateCol.add(dateLbl, BorderLayout.NORTH); dateCol.add(dateBox, BorderLayout.CENTER);
+
+
+            JPanel timeCol = new JPanel(new BorderLayout()); timeCol.setOpaque(false);
+            JLabel timeLbl = new JLabel("Select Time"); timeLbl.setForeground(Color.LIGHT_GRAY);
+            timeBox = new JComboBox<>();
+            timeBox.setBackground(new Color(30, 41, 59)); timeBox.setForeground(Color.WHITE);
+            timeCol.add(timeLbl, BorderLayout.NORTH); timeCol.add(timeBox, BorderLayout.CENTER);
+
+
+            dateTimeRow.add(dateCol);
+            dateTimeRow.add(timeCol);
+            mainForm.add(dateTimeRow);
+            mainForm.add(Box.createRigidArea(new Dimension(0, 10)));
+
+
+            JLabel demogLbl = new JLabel("Ticket Demographics Count");
+            demogLbl.setForeground(Main.AppTheme.getSecondaryAccent());
+            demogLbl.setFont(Main.AppTheme.getFont(Font.BOLD, 12));
+            mainForm.add(demogLbl);
+
+
+            JPanel demogPanel = new JPanel(new GridLayout(1, 3, 5, 0));
+            demogPanel.setOpaque(false);
+
+
+            JComboBox<Integer> adultBox = new JComboBox<>(new Integer[]{1, 2, 3, 4, 5});
+            JComboBox<Integer> childBox = new JComboBox<>(new Integer[]{0, 1, 2, 3, 4, 5});
+            JComboBox<Integer> pwdBox = new JComboBox<>(new Integer[]{0, 1, 2, 3, 4, 5});
+
+
+            adultBox.setBackground(new Color(30, 41, 59)); adultBox.setForeground(Color.WHITE);
+            childBox.setBackground(new Color(30, 41, 59)); childBox.setForeground(Color.WHITE);
+            pwdBox.setBackground(new Color(30, 41, 59)); pwdBox.setForeground(Color.WHITE);
+
+
+            JPanel aCol = new JPanel(new BorderLayout()); aCol.setOpaque(false);
+            aCol.add(new JLabel("Adult"), BorderLayout.NORTH); aCol.add(adultBox, BorderLayout.CENTER);
+
+
+            JPanel cCol = new JPanel(new BorderLayout()); cCol.setOpaque(false);
+            cCol.add(new JLabel("Child (-30%)"), BorderLayout.NORTH); cCol.add(childBox, BorderLayout.CENTER);
+
+
+            JPanel pCol = new JPanel(new BorderLayout()); pCol.setOpaque(false);
+            pCol.add(new JLabel("PWD (-40%)"), BorderLayout.NORTH); pCol.add(pwdBox, BorderLayout.CENTER);
+
+
+            demogPanel.add(aCol);
+            demogPanel.add(cCol);
+            demogPanel.add(pCol);
+            mainForm.add(demogPanel);
+            mainForm.add(Box.createRigidArea(new Dimension(0, 10)));
+
+
+            JLabel foodLbl = new JLabel("Specialized Sensory Food Selections");
+            foodLbl.setForeground(Main.AppTheme.getSecondaryAccent());
+            foodLbl.setFont(Main.AppTheme.getFont(Font.BOLD, 12));
+            mainForm.add(foodLbl);
+
+
+            checkPopcorn = new JCheckBox(); checkPopcorn.setOpaque(false); checkPopcorn.setForeground(Color.WHITE);
+            checkTea = new JCheckBox(); checkTea.setOpaque(false); checkTea.setForeground(Color.WHITE);
+            checkBites = new JCheckBox(); checkBites.setOpaque(false); checkBites.setForeground(Color.WHITE);
+
+
+            mainForm.add(checkPopcorn);
+            mainForm.add(checkTea);
+            mainForm.add(checkBites);
+            mainForm.add(Box.createRigidArea(new Dimension(0, 10)));
+
+
+            JLabel payLbl = new JLabel("Secure Payment Method");
+            payLbl.setForeground(Main.AppTheme.getSecondaryAccent());
+            payLbl.setFont(Main.AppTheme.getFont(Font.BOLD, 12));
+            mainForm.add(payLbl);
+
+
+            String eWalletText = "Taiwan".equalsIgnoreCase(region) ? "LINE Pay (E-Wallet)" : "GCash (E-Wallet)";
+            String storeText = "Taiwan".equalsIgnoreCase(region) ? "7-Eleven IBON Store Pay" : "7-Eleven CLiQQ Store Pay";
+
+
+            JComboBox<String> payBox = new JComboBox<>(new String[]{"Credit/Debit Card", eWalletText, storeText});
+            payBox.setBackground(new Color(30, 41, 59));
+            payBox.setForeground(Color.WHITE);
+            payBox.setMaximumSize(new Dimension(440, 35));
+            mainForm.add(payBox);
+
+
+            updateVenueSpecificOptions((String) venueBox.getSelectedItem());
+            venueBox.addActionListener(e -> updateVenueSpecificOptions((String) venueBox.getSelectedItem()));
+
+
+            JScrollPane scroll = new JScrollPane(mainForm);
+            scroll.setOpaque(false); scroll.getViewport().setOpaque(false); scroll.setBorder(null);
+            add(scroll, BorderLayout.CENTER);
+
+
+            Main.ModernButton btnNext = new Main.ModernButton("CHOOSE SEATING", Main.AppTheme.getAccent());
+            btnNext.addActionListener(e -> {
+                if (Main.SessionManager.currentBooking != null) {
+                    String selectedTitle = (String) filmBox.getSelectedItem();
+                    for (Movie m : SessionManager.movieLibrary) {
+                        if (m.title.equalsIgnoreCase(selectedTitle)) {
+                            Main.SessionManager.currentBooking.movie = m;
+                            break;
+                        }
+                    }
+
+
+                    Main.SessionManager.currentBooking.selectedVenue = (String) venueBox.getSelectedItem();
+                    Main.SessionManager.currentBooking.selectedDate = (String) dateBox.getSelectedItem();
+                    Main.SessionManager.currentBooking.selectedTime = (String) timeBox.getSelectedItem();
+
+
+                    Main.SessionManager.currentBooking.adultCount = (Integer) adultBox.getSelectedItem();
+                    Main.SessionManager.currentBooking.childCount = (Integer) childBox.getSelectedItem();
+                    Main.SessionManager.currentBooking.pwdCount = (Integer) pwdBox.getSelectedItem();
+
+
+                    Main.SessionManager.currentBooking.foodPopcorn = checkPopcorn.isSelected();
+                    Main.SessionManager.currentBooking.foodChamomileTea = checkTea.isSelected();
+                    Main.SessionManager.currentBooking.foodCalmBites = checkBites.isSelected();
+
+
+                    Main.SessionManager.currentBooking.paymentMethod = (String) payBox.getSelectedItem();
+                    Main.SessionManager.currentBooking.calculateFinalPrice(region);
+                }
+                app.navigateTo("Seats");
+            });
+
+
+            JPanel bottomActionPanel = new JPanel(new BorderLayout());
+            bottomActionPanel.setOpaque(false);
+            bottomActionPanel.setBorder(new EmptyBorder(10, 0, 0, 0));
+
+
+            Main.ModernButton btnBack = new Main.ModernButton("RETURN", Main.AppTheme.getSurfaceGlass());
+            btnBack.addActionListener(e -> app.navigateTo("Dashboard"));
+
+
+            bottomActionPanel.add(btnNext, BorderLayout.CENTER);
+            bottomActionPanel.add(btnBack, BorderLayout.SOUTH);
+            add(bottomActionPanel, BorderLayout.SOUTH);
+        }
+
+
+        private void updateVenueSpecificOptions(String venue) {
+            filmBox.removeAllItems();
+            dateBox.removeAllItems();
+            timeBox.removeAllItems();
+
+
+            if ("SM Cinema Manila".equals(venue)) {
+                filmBox.addItem("Manila in the Claws of Light");
+                filmBox.addItem("Godzilla x Kong");
+                filmBox.addItem("Inside Out 2");
+
+
+                dateBox.addItem("2026-06-15");
+                dateBox.addItem("2026-06-16");
+                dateBox.addItem("2026-06-17");
+
+
+                timeBox.addItem("10:30 AM (Sensory Safe)");
+                timeBox.addItem("02:00 PM");
+                timeBox.addItem("05:30 PM (Sensory Safe)");
+
+
+                checkPopcorn.setText("Manila Sweet Caramel Popcorn (₱150)");
+                checkTea.setText("Calming Ginger Herbal Brew (₱120)");
+                checkBites.setText("Soft Steamed Rice Cakes (₱110)");
+            } else if ("BGC High Street Central".equals(venue)) {
+                filmBox.addItem("Interstellar: Re-Release");
+                filmBox.addItem("The Dark Knight: Sensory Cut");
+                filmBox.addItem("Deadpool & Wolverine");
+
+
+                dateBox.addItem("2026-07-20");
+                dateBox.addItem("2026-07-21");
+
+
+                timeBox.addItem("10:00 AM (Sensory Safe)");
+                timeBox.addItem("01:30 PM");
+                timeBox.addItem("07:00 PM");
+
+
+                checkPopcorn.setText("Premium Sea Salt Popcorn (₱180)");
+                checkTea.setText("Organic Chamomile Lavender infusion (₱140)");
+                checkBites.setText("Gluten-Free Honey Baked Oats (₱160)");
+            } else if ("Ayala Malls Cinema Cebu".equals(venue)) {
+                filmBox.addItem("Spirited Away: Extended");
+                filmBox.addItem("Inside Out 2");
+                filmBox.addItem("Godzilla x Kong");
+
+
+                dateBox.addItem("2026-06-25");
+                dateBox.addItem("2026-06-26");
+
+
+                timeBox.addItem("11:30 AM (Sensory Safe)");
+                timeBox.addItem("03:30 PM");
+
+
+                checkPopcorn.setText("Cebu Sweet Mango Popcorn (₱160)");
+                checkTea.setText("Relaxing Peppermint Infusion (₱130)");
+                checkBites.setText("Baked Cassava Soft Cakes (₱120)");
+            } else if ("Vie Show Taipei Qsquare".equals(venue)) {
+                filmBox.addItem("Spirited Away: Extended");
+                filmBox.addItem("Crouching Tiger, Hidden Dragon");
+                filmBox.addItem("Life of Pi");
+
+
+                dateBox.addItem("2026-06-15");
+                dateBox.addItem("2026-06-18");
+                dateBox.addItem("2026-06-20");
+
+
+                timeBox.addItem("10:30 AM (Sensory Safe)");
+                timeBox.addItem("03:00 PM");
+                timeBox.addItem("06:30 PM (Sensory Safe)");
+
+
+                checkPopcorn.setText("Taiwanese Oolong Infused Popcorn (NT$90)");
+                checkTea.setText("Warm Steamed Jasmine Tea (NT$80)");
+                checkBites.setText("Low-Sugar Soft Sesame Mochi (NT$110)");
+            } else if ("Ambassador Theatre Kaohsiung".equals(venue)) {
+                filmBox.addItem("Life of Pi");
+                filmBox.addItem("Crouching Tiger, Hidden Dragon");
+                filmBox.addItem("Interstellar: Re-Release");
+
+
+                dateBox.addItem("2026-07-01");
+                dateBox.addItem("2026-07-02");
+
+
+                timeBox.addItem("01:00 PM (Sensory Safe)");
+                timeBox.addItem("04:30 PM");
+
+
+                checkPopcorn.setText("Kaohsiung Sea Salted Caramel Corn (NT$95)");
+                checkTea.setText("Calming Honey Chrysanthemum Tea (NT$85)");
+                checkBites.setText("Steamed Red Bean Paste Cakes (NT$100)");
+            } else {
+                filmBox.addItem("Dune: Part Three");
+                filmBox.addItem("Blade Runner: Re-Echo");
+                filmBox.addItem("Inside Out 2");
+
+
+                dateBox.addItem("2026-07-15");
+                dateBox.addItem("2026-07-16");
+
+
+                timeBox.addItem("02:00 PM (Sensory Safe)");
+                timeBox.addItem("06:00 PM");
+
+
+                checkPopcorn.setText("Organic Sweet Butter Corn (NT$100)");
+                checkTea.setText("Calming Lavender Barley Infusion (NT$90)");
+                checkBites.setText("Nut-Free Gluten-Free Taro Puff (NT$120)");
+            }
+
+
+            if (Main.SessionManager.selectedMovie != null) {
+                String activeTitle = Main.SessionManager.selectedMovie.title;
+                for (int i = 0; i < filmBox.getItemCount(); i++) {
+                    if (filmBox.getItemAt(i).equalsIgnoreCase(activeTitle)) {
+                        filmBox.setSelectedIndex(i);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+
+    // 10. Seating Selection Screen (With Strict Seat Selection Demographics limits)
+    public static class SeatSelectionScreen extends JPanel {
+        public SeatSelectionScreen(Main app) {
+            setLayout(new BorderLayout());
+            setOpaque(false);
+            setBorder(new EmptyBorder(25, 20, 25, 20));
+
+
+            JPanel screenPanel = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g;
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(Main.AppTheme.getSecondaryAccent());
+                    g2.setStroke(new BasicStroke(3));
+                    g2.draw(new Arc2D.Float(50, 15, getWidth() - 100, 30, 0, 180, Arc2D.OPEN));
+                    g2.setFont(Main.AppTheme.getFont(Font.PLAIN, 11));
+                    g2.setColor(Color.LIGHT_GRAY);
+                    g2.drawString("CINEMA SOUND FIELD FOCUS AREA", getWidth() / 2 - 95, 40);
+                }
+            };
+            screenPanel.setOpaque(false);
+            screenPanel.setPreferredSize(new Dimension(400, 50));
+            add(screenPanel, BorderLayout.NORTH);
+
+
+            JPanel grid = new JPanel(new GridLayout(6, 6, 8, 8));
+            grid.setOpaque(false);
+
+
+            for (int i = 1; i <= 36; i++) {
+                final String seatId = "S" + i;
+                JButton seatBtn = new JButton();
+                seatBtn.setPreferredSize(new Dimension(45, 45));
+                seatBtn.setOpaque(false);
+                seatBtn.setContentAreaFilled(false);
+                seatBtn.setFocusPainted(false);
+                seatBtn.setBorderPainted(false);
+
+
+                final boolean isSensoryOptimal = (i % 6 == 1 || i % 6 == 0);
+
+
+                seatBtn.addActionListener(e -> {
+                    if (Main.SessionManager.currentBooking == null) return;
+
+
+                    int totalBookedCount = Main.SessionManager.currentBooking.adultCount +
+                            Main.SessionManager.currentBooking.childCount +
+                            Main.SessionManager.currentBooking.pwdCount;
+
+
+                    if (Main.SessionManager.currentBooking.selectedSeats.contains(seatId)) {
+                        Main.SessionManager.currentBooking.selectedSeats.remove(seatId);
+                    } else {
+                        if (Main.SessionManager.currentBooking.selectedSeats.size() >= totalBookedCount) {
+                            JOptionPane.showMessageDialog(this,
+                                    "Headcount selection limit reached.\nAs configured on your ticket, you are allocated exactly "
+                                            + totalBookedCount + " seat(s).",
+                                    "Seating Threshold", JOptionPane.WARNING_MESSAGE);
+                            return;
+                        }
+                        Main.SessionManager.currentBooking.selectedSeats.add(seatId);
+                    }
+                    repaint();
+                });
+
+
+                seatBtn.setUI(new javax.swing.plaf.basic.BasicButtonUI() {
+                    @Override
+                    public void paint(Graphics g, JComponent c) {
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        boolean isSelected = Main.SessionManager.currentBooking != null &&
+                                Main.SessionManager.currentBooking.selectedSeats.contains(seatId);
+
+
+                        Color seatColor;
+                        if (isSelected) {
+                            seatColor = Main.AppTheme.getAccent();
+                        } else if (isSensoryOptimal) {
+                            seatColor = Main.AppTheme.getSecondaryAccent();
+                        } else {
+                            seatColor = new Color(55, 65, 81);
+                        }
+
+
+                        g2.setColor(seatColor);
+                        g2.fillRoundRect(2, 2, c.getWidth() - 4, c.getHeight() - 8, 10, 10);
+                        g2.setColor(seatColor.darker());
+                        g2.fillRoundRect(5, c.getHeight() - 8, c.getWidth() - 10, 6, 4, 4);
+
+
+                        g2.setColor(Color.WHITE);
+                        g2.setFont(Main.AppTheme.getFont(Font.BOLD, 10));
+                        g2.drawString(seatId, c.getWidth() / 2 - 8, c.getHeight() / 2 - 2);
+                        g2.dispose();
+                    }
+                });
+
+
+                grid.add(seatBtn);
+            }
+            add(grid, BorderLayout.CENTER);
+
+
+            JPanel controls = new JPanel();
+            controls.setLayout(new BoxLayout(controls, BoxLayout.Y_AXIS));
+            controls.setOpaque(false);
+
+
+            JPanel legendPanel = new JPanel();
+            legendPanel.setOpaque(false);
+            JLabel labelNorm = new JLabel("● Standard"); labelNorm.setForeground(new Color(55, 65, 81));
+            JLabel labelSens = new JLabel("● Sensory Optimal"); labelSens.setForeground(Main.AppTheme.getSecondaryAccent());
+            JLabel labelSel = new JLabel("● Reserved"); labelSel.setForeground(Main.AppTheme.getAccent());
+            legendPanel.add(labelNorm);
+            legendPanel.add(Box.createRigidArea(new Dimension(10, 0)));
+            legendPanel.add(labelSens);
+            legendPanel.add(Box.createRigidArea(new Dimension(10, 0)));
+            legendPanel.add(labelSel);
+
+
+            Main.ModernButton btnConfirm = new Main.ModernButton("COMMIT SELECTION & PAY", Main.AppTheme.getAccent());
+            btnConfirm.addActionListener(e -> {
+                if (Main.SessionManager.currentBooking == null) return;
+
+
+                int totalBookedCount = Main.SessionManager.currentBooking.adultCount +
+                        Main.SessionManager.currentBooking.childCount +
+                        Main.SessionManager.currentBooking.pwdCount;
+                int currentSelectionCount = Main.SessionManager.currentBooking.selectedSeats.size();
+
+
+                if (currentSelectionCount != totalBookedCount) {
+                    JOptionPane.showMessageDialog(this,
+                            "Headcount mismatch detected!\nPlease select exactly " + totalBookedCount +
+                                    " seat(s) to match your ticket demographic booking config (currently chosen: " +
+                                    currentSelectionCount + ").",
+                            "Incomplete Configuration", JOptionPane.ERROR_MESSAGE);
+                } else {
+                    if (Main.SessionManager.currentBooking.paymentMethod.toLowerCase().contains("card")) {
+                        app.navigateTo("PaymentForm");
+                    } else {
+                        Main.SessionManager.currentBooking.referenceCode = "LUM-" + (100000 + new Random().nextInt(900000));
+                        app.refreshAppLayout();
+                        app.navigateTo("Ticket");
+                    }
+                }
+            });
+
+
+            controls.add(legendPanel);
+            controls.add(Box.createRigidArea(new Dimension(0, 15)));
+            controls.add(btnConfirm);
+            add(controls, BorderLayout.SOUTH);
+        }
+    }
+
+
+    // --- NEW SECURE CREDIT CARD GATEWAY SCREEN ---
+    public static class PaymentFormScreen extends JPanel {
+        public PaymentFormScreen(Main app) {
+            setLayout(new GridBagLayout());
+            setOpaque(false);
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = 0; gbc.fill = GridBagConstraints.HORIZONTAL;
+            gbc.insets = new Insets(8, 20, 8, 20);
+
+
+            JLabel title = new JLabel("Secure Card Gateway", JLabel.CENTER);
+            title.setFont(Main.AppTheme.getFont(Font.BOLD, 22));
+            title.setForeground(Main.AppTheme.getGold());
+
+
+            Main.MinimalistMovieFrame framePanel = new Main.MinimalistMovieFrame();
+
+
+            Main.GlassTextField fieldHolder = new Main.GlassTextField(20);
+            Main.GlassTextField fieldCardNum = new Main.GlassTextField(20);
+
+
+            JPanel smallRow = new JPanel(new GridLayout(1, 2, 10, 0));
+            smallRow.setOpaque(false);
+            Main.GlassTextField fieldExpiry = new Main.GlassTextField(8);
+            Main.GlassTextField fieldCVV = new Main.GlassTextField(4);
+
+
+            JPanel expCol = new JPanel(new BorderLayout()); expCol.setOpaque(false);
+            expCol.add(new JLabel("Expiry (MM/YY)"), BorderLayout.NORTH); expCol.add(fieldExpiry, BorderLayout.CENTER);
+
+
+            JPanel cvvCol = new JPanel(new BorderLayout()); cvvCol.setOpaque(false);
+            cvvCol.add(new JLabel("CVV"), BorderLayout.NORTH); cvvCol.add(fieldCVV, BorderLayout.CENTER);
+
+
+            smallRow.add(expCol);
+            smallRow.add(cvvCol);
+
+
+            Main.ModernButton btnSubmit = new Main.ModernButton("AUTHORIZE & COMPLETE", Main.AppTheme.getAccent());
+            Main.ModernButton btnBack = new Main.ModernButton("CANCEL TRANSACTION", Main.AppTheme.getSurfaceGlass());
+
+
+            btnSubmit.addActionListener(e -> {
+                String name = fieldHolder.getText().trim();
+                String card = fieldCardNum.getText().trim().replaceAll("\\s", "");
+                String exp = fieldExpiry.getText().trim();
+                String cvv = fieldCVV.getText().trim();
+
+
+                if (name.isEmpty() || card.isEmpty() || exp.isEmpty() || cvv.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Complete all marked components.");
+                } else if (!card.matches("\\d{16}")) {
+                    JOptionPane.showMessageDialog(this, "Please enter a valid 16-digit card number.");
+                } else if (!exp.matches("^(0[1-9]|1[0-2])\\/?([0-9]{2})$")) {
+                    JOptionPane.showMessageDialog(this, "Please enter a valid expiry format (MM/YY).");
+                } else if (!cvv.matches("\\d{3}")) {
+                    JOptionPane.showMessageDialog(this, "Please enter a valid 3-digit CVV code.");
+                } else {
+                    if (Main.SessionManager.currentBooking != null) {
+                        Main.SessionManager.currentBooking.referenceCode = "LUM-" + (100000 + new Random().nextInt(900000));
+                    }
+                    app.refreshAppLayout();
+                    app.navigateTo("Ticket");
+                }
+            });
+
+
+            btnBack.addActionListener(e -> app.navigateTo("Seats"));
+
+
+            gbc.gridy = 0; add(title, gbc);
+            gbc.gridy = 1; add(framePanel, gbc);
+            gbc.gridy = 2; add(new JLabel("Cardholder Full Name"), gbc);
+            gbc.gridy = 3; add(fieldHolder, gbc);
+            gbc.gridy = 4; add(new JLabel("Card Number (16 Digits)"), gbc);
+            gbc.gridy = 5; add(fieldCardNum, gbc);
+            gbc.gridy = 6; add(smallRow, gbc);
+            gbc.gridy = 7; add(Box.createRigidArea(new Dimension(0, 15)), gbc);
+            gbc.gridy = 8; add(btnSubmit, gbc);
+            gbc.gridy = 9; add(btnBack, gbc);
+        }
+    }
+
+
+    // --- CUSTOM VISUAL RECEIPT CANVAS DRAWING PANEL ---
+    public static class CreativeReceiptPanel extends JPanel {
+        public CreativeReceiptPanel() {
+            setOpaque(false);
+            setPreferredSize(new Dimension(420, 520));
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+            Main.Booking b = Main.SessionManager.currentBooking;
+            Main.User u = Main.SessionManager.currentUser;
+            if (b == null || u == null) {
+                g2.dispose();
+                return;
+            }
+
+
+            int w = getWidth();
+            int h = getHeight();
+
+
+            int slipW = 340;
+            int slipH = 460;
+            int rx = (w - slipW) / 2;
+            int ry = (h - slipH) / 2;
+
+
+            g2.setColor(new Color(0, 0, 0, 120));
+            g2.fillRoundRect(rx + 4, ry + 4, slipW, slipH, 16, 16);
+
+
+            g2.setColor(new Color(248, 250, 252));
+            g2.fillRoundRect(rx, ry, slipW, slipH, 16, 16);
+
+
+            g2.setColor(new Color(15, 23, 42));
+            g2.fillRoundRect(rx, ry, slipW, 45, 16, 16);
+            g2.fillRect(rx, ry + 30, slipW, 15);
+
+
+            g2.setColor(Color.WHITE);
+            g2.setFont(new Font("SansSerif", Font.BOLD, 14));
+            g2.drawString("LUMINA SENSORY RECEIPT", rx + 24, ry + 28);
+
+
+            g2.setColor(new Color(30, 41, 59));
+            int drawY = ry + 75;
+
+
+            g2.setFont(new Font("Monospaced", Font.BOLD, 12));
+            g2.drawString("BILL TO: " + u.fullName, rx + 20, drawY);
+            drawY += 18;
+            g2.drawString("EMAIL: " + u.email, rx + 20, drawY);
+            drawY += 18;
+            g2.drawString("REF CODE: " + b.referenceCode, rx + 20, drawY);
+            drawY += 20;
+
+
+            g2.setColor(Color.LIGHT_GRAY);
+            g2.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[]{4, 4}, 0.0f));
+            g2.drawLine(rx + 20, drawY, rx + slipW - 20, drawY);
+            drawY += 20;
+
+
+            g2.setColor(new Color(51, 65, 85));
+            g2.setFont(new Font("SansSerif", Font.PLAIN, 11));
+
+
+            String sym = b.movie.getCurrencySymbol(u.country);
+            double baseRate = b.movie.getPriceInCurrency(u.country);
+
+
+            g2.drawString("Adult Seats (" + b.adultCount + "x)", rx + 20, drawY);
+            g2.drawString(sym + String.format("%.2f", b.adultCount * baseRate), rx + slipW - 100, drawY);
+            drawY += 18;
+
+
+            if (b.childCount > 0) {
+                g2.drawString("Child Seats (-30%) (" + b.childCount + "x)", rx + 20, drawY);
+                g2.drawString(sym + String.format("%.2f", b.childCount * (baseRate * 0.7)), rx + slipW - 100, drawY);
+                drawY += 18;
+            }
+
+
+            if (b.pwdCount > 0) {
+                g2.drawString("PWD Seats (-40%) (" + b.pwdCount + "x)", rx + 20, drawY);
+                g2.drawString(sym + String.format("%.2f", b.pwdCount * (baseRate * 0.6)), rx + slipW - 100, drawY);
+                drawY += 18;
+            }
+
+
+            String foodStr = b.foodPopcorn || b.foodChamomileTea || b.foodCalmBites ? "Applied" : "None";
+            g2.drawString("Sensory Concessions:", rx + 20, drawY);
+            g2.drawString(foodStr, rx + slipW - 100, drawY);
+            drawY += 20;
+
+
+            g2.drawLine(rx + 20, drawY, rx + slipW - 20, drawY);
+            drawY += 25;
+
+
+            g2.setFont(new Font("SansSerif", Font.BOLD, 15));
+            g2.setColor(new Color(15, 23, 42));
+            g2.drawString("TOTAL PAID:", rx + 20, drawY);
+            g2.setColor(new Color(255, 0, 120));
+            g2.drawString(sym + String.format("%.2f", b.calculatedPrice), rx + slipW - 130, drawY);
+            drawY += 25;
+
+
+            g2.setFont(new Font("SansSerif", Font.ITALIC, 10));
+            g2.setColor(Color.GRAY);
+            g2.drawString("Processor Gateway: " + b.paymentMethod, rx + 20, drawY);
+            drawY += 15;
+            g2.drawString("Lumina Hub Transaction ID secured.", rx + 20, drawY);
+
+
+            g2.rotate(Math.toRadians(-12), rx + 220, drawY + 30);
+            g2.setColor(new Color(0, 180, 100, 180));
+            g2.setStroke(new BasicStroke(2.0f));
+            g2.drawRoundRect(rx + 155, drawY + 10, 85, 30, 8, 8);
+            g2.setFont(new Font("SansSerif", Font.BOLD, 14));
+            g2.drawString("PAID & OK", rx + 165, drawY + 30);
+
+
+            g2.dispose();
+        }
+    }
+
+
+    // --- CUSTOM VISUAL ADMISSION TICKET DRAWING PANEL ---
+    public static class CreativeTicketPanel extends JPanel {
+        public CreativeTicketPanel() {
+            setOpaque(false);
+            setPreferredSize(new Dimension(420, 520));
+        }
+
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+
+            Main.Booking b = Main.SessionManager.currentBooking;
+            Main.User u = Main.SessionManager.currentUser;
+            if (b == null || u == null) {
+                g2.dispose();
+                return;
+            }
+
+
+            int w = getWidth();
+            int h = getHeight();
+
+
+            int slipW = 340;
+            int slipH = 460;
+            int rx = (w - slipW) / 2;
+            int ry = (h - slipH) / 2;
+
+
+            g2.setColor(new Color(0, 0, 0, 140));
+            g2.fillRoundRect(rx + 4, ry + 4, slipW, slipH, 20, 20);
+
+
+            g2.setColor(new Color(15, 23, 42));
+            g2.fillRoundRect(rx, ry, slipW, slipH, 20, 20);
+
+
+            g2.setColor(Main.AppTheme.getAccent());
+            g2.setStroke(new BasicStroke(2.0f));
+            g2.drawRoundRect(rx, ry, slipW, slipH, 20, 20);
+
+
+            g2.setColor(Main.AppTheme.getBackgroundEnd());
+            g2.fillOval(rx - 15, ry + 180, 30, 30);
+            g2.fillOval(rx + slipW - 15, ry + 180, 30, 30);
+
+
+            g2.setColor(new Color(255, 255, 255, 80));
+            g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{6, 6}, 0));
+            g2.drawLine(rx + 20, ry + 195, rx + slipW - 20, ry + 195);
+
+
+            g2.setColor(Color.WHITE);
+            g2.setFont(Main.AppTheme.getFont(Font.BOLD, 15));
+            g2.drawString("LUMINA ADMISSION TICKET", rx + 24, ry + 38);
+
+
+            g2.setFont(Main.AppTheme.getFont(Font.PLAIN, 10));
+            g2.setColor(Main.AppTheme.getSecondaryAccent());
+            g2.drawString("Sensory safe movie admission access pass.", rx + 24, ry + 54);
+
+
+            g2.setColor(Color.LIGHT_GRAY);
+            g2.setFont(new Font("SansSerif", Font.PLAIN, 11));
+            int drawY = ry + 85;
+
+
+            g2.drawString("OWNER:", rx + 24, drawY);
+            g2.setColor(Color.WHITE);
+            g2.drawString(u.fullName, rx + 120, drawY);
+            drawY += 20;
+
+
+            g2.setColor(Color.LIGHT_GRAY);
+            g2.drawString("FILM:", rx + 24, drawY);
+            g2.setColor(Main.AppTheme.getGold());
+            g2.drawString(b.movie.title, rx + 120, drawY);
+            drawY += 20;
+
+
+            g2.setColor(Color.LIGHT_GRAY);
+            g2.drawString("VENUE:", rx + 24, drawY);
+            g2.setColor(Color.WHITE);
+            g2.drawString(b.selectedVenue, rx + 120, drawY);
+            drawY += 20;
+
+
+            g2.setColor(Color.LIGHT_GRAY);
+            g2.drawString("SCHEDULE:", rx + 24, drawY);
+            g2.setColor(Color.WHITE);
+            g2.drawString(b.selectedDate + " @ " + b.selectedTime, rx + 120, drawY);
+            drawY += 20;
+
+
+            g2.setColor(Color.LIGHT_GRAY);
+            g2.drawString("SEATS:", rx + 24, drawY);
+            g2.setColor(Main.AppTheme.getSecondaryAccent());
+            g2.drawString(b.selectedSeats.toString(), rx + 120, drawY);
+
+
+            int qrSize = 130;
+            int qrx = rx + (slipW - qrSize) / 2;
+            int qry = ry + 225;
+
+
+            Main.QRGenerator.drawMatrix(g2, qrx, qry, qrSize, b.referenceCode);
+
+
+            g2.setColor(Color.GRAY);
+            g2.setFont(new Font("Monospaced", Font.BOLD, 11));
+            g2.drawString("SERIAL: " + b.referenceCode, rx + 105, ry + slipH - 30);
+
+
+            g2.dispose();
+        }
+    }
+
+
+    // 11. Custom Divided Boarding Pass Receipt Screen
+    public static class TicketScreen extends JPanel {
+        private final JPanel cardContainer = new JPanel(new CardLayout());
+        private final CardLayout cards = (CardLayout) cardContainer.getLayout();
+        private final Main.ModernButton btnTabTicket = new Main.ModernButton("ADMISSION TICKET", Main.AppTheme.getAccent());
+        private final Main.ModernButton btnTabReceipt = new Main.ModernButton("PAYMENT RECEIPT", Main.AppTheme.getSurfaceGlass());
+
+
+        public TicketScreen(Main app) {
+            setLayout(new BorderLayout());
+            setOpaque(false);
+            setBorder(new EmptyBorder(15, 20, 15, 20));
+
+
+            JPanel tabHeader = new JPanel(new GridLayout(1, 2, 10, 0));
+            tabHeader.setOpaque(false);
+            tabHeader.setPreferredSize(new Dimension(440, 42));
+
+
+            btnTabTicket.addActionListener(e -> {
+                btnTabTicket.setBackground(Main.AppTheme.getAccent());
+                btnTabReceipt.setBackground(Main.AppTheme.getSurfaceGlass());
+                cards.show(cardContainer, "TICKET");
+            });
+
+
+            btnTabReceipt.addActionListener(e -> {
+                btnTabReceipt.setBackground(Main.AppTheme.getAccent());
+                btnTabTicket.setBackground(Main.AppTheme.getSurfaceGlass());
+                cards.show(cardContainer, "RECEIPT");
+            });
+
+
+            tabHeader.add(btnTabTicket);
+            tabHeader.add(btnTabReceipt);
+            add(tabHeader, BorderLayout.NORTH);
+
+
+            cardContainer.setOpaque(false);
+            cardContainer.add(new Main.CreativeTicketPanel(), "TICKET");
+            cardContainer.add(new Main.CreativeReceiptPanel(), "RECEIPT");
+            add(cardContainer, BorderLayout.CENTER);
+
+
+            Main.ModernButton btnFinish = new Main.ModernButton("COMPLETE RESERVATION", Main.AppTheme.getAccent());
+            btnFinish.addActionListener(e -> {
+                Main.User u = Main.SessionManager.currentUser;
+                Main.Booking b = Main.SessionManager.currentBooking;
+                if (b != null && u != null) {
+                    b.userEmail = u.email;
+                    Main.SessionManager.pastBookings.add(b);
+
+
+                    Frame parentFrame = (Frame) SwingUtilities.getWindowAncestor(this);
+                    Main.DispatchQRDialog qrDialog = new Main.DispatchQRDialog(parentFrame, u.email, b.referenceCode);
+                    qrDialog.setVisible(true);
+                }
+                Main.SessionManager.currentBooking = null;
+                app.navigateTo("Dashboard");
+            });
+            add(btnFinish, BorderLayout.SOUTH);
+        }
+    }
+
+
+    // --- BOTTOM GLOBAL NAVIGATION BAR ---
+    private static JPanel createBottomNavigation(Main app) {
+        JPanel nav = new JPanel(new GridLayout(1, 5));
+        nav.setBackground(new Color(15, 23, 42));
+        nav.setPreferredSize(new Dimension(480, 60));
+
+
+        String[] labels = {
+                Main.Dictionary.get("nav_dashboard"),
+                Main.Dictionary.get("nav_library"),
+                Main.Dictionary.get("nav_about"),
+                Main.Dictionary.get("nav_profile"),
+                Main.Dictionary.get("nav_logout")
+        };
+
+
+        for (String label : labels) {
+            JButton btn = new JButton(label);
+            btn.setForeground(Color.WHITE);
+            btn.setFont(Main.AppTheme.getFont(Font.BOLD, 10));
+            btn.setContentAreaFilled(false);
+            btn.setBorderPainted(false);
+            btn.setFocusPainted(false);
+
+
+            btn.addActionListener(e -> {
+                if (label.equals(Main.Dictionary.get("nav_logout"))) {
+                    Main.SessionManager.currentUser = null;
+                    app.navigateTo("Entrance");
+                } else if (label.equals(Main.Dictionary.get("nav_dashboard"))) {
+                    app.navigateTo("Dashboard");
+                } else if (label.equals(Main.Dictionary.get("nav_library"))) {
+                    app.navigateTo("Library");
+                } else if (label.equals(Main.Dictionary.get("nav_about"))) {
+                    app.navigateTo("AboutLumina");
+                } else if (label.equals(Main.Dictionary.get("nav_profile"))) {
+                    app.navigateTo("UserProfile");
+                }
+            });
+            nav.add(btn);
+        }
+        return nav;
+    }
+
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(Main::new);
+    }
+}
+
